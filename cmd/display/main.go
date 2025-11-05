@@ -2,22 +2,23 @@ package main
 
 import (
 	"flag"
-	"github.com/gorilla/websocket"
-	"github.com/je4/securedisplay/pkg/event"
-	"github.com/je4/utils/v2/pkg/zLogger"
-	"github.com/rs/zerolog"
 	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/gorilla/websocket"
+	"github.com/je4/securedisplay/pkg/event"
+	"github.com/je4/utils/v2/pkg/zLogger"
+	"github.com/rs/zerolog"
 )
 
 var name = flag.String("name", "display01", "name of the display")
-var proxy = flag.String("proxy", "http://localhost:8080/ws", "address of the websocket proxy server")
+var proxy = flag.String("proxy", "ws://localhost:8080/ws", "address of the websocket proxy server")
 
 func main() {
 	flag.Parse()
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	logger := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
 	logger.Info().Msgf("Starting display with name %s", *name)
 	zlogger := zLogger.ZLogger(&logger)
 
@@ -47,7 +48,7 @@ func main() {
 	signal.Notify(sigint, syscall.SIGKILL)
 	<-sigint
 	logger.Info().Msg("Received shutdown signal")
-	if err := srv.Stop(); err != nil {
+	if err := comm.Stop(); err != nil {
 		logger.Error().Err(err).Msg("Failed to stop server")
 	}
 }

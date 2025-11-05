@@ -2,18 +2,19 @@ package main
 
 import (
 	"flag"
-	"github.com/je4/securedisplay/pkg/server"
-	"github.com/rs/zerolog"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/je4/securedisplay/pkg/server"
+	"github.com/rs/zerolog"
 )
 
 var addr = flag.String("addr", "localhost:8080", "http service address")
 
 func main() {
 	flag.Parse()
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	logger := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
 	logger.Info().Msgf("Starting server on %s", *addr)
 
 	srv, err := server.NewSocketServer(*addr, &logger)

@@ -18,7 +18,6 @@ import (
 
 	"image"
 	"image/jpeg"
-	"io/ioutil"
 	"os"
 
 	//"github.com/chromedp/cdproto/emulation"
@@ -110,7 +109,7 @@ func (browser *Browser) Init(execOptions map[string]interface{}) error {
 	var err error
 
 	// create a temporary directory
-	browser.TempDir, err = ioutil.TempDir("", "bremote")
+	browser.TempDir, err = os.MkdirTemp("", "securedisplay")
 	if err != nil {
 		return errors.Wrap(err, "cannot create tempdir")
 	}
