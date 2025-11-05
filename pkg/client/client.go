@@ -4,14 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"emperror.dev/emperror"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/je4/securedisplay/pkg/browser"
-	"github.com/je4/utils/v2/pkg/zLogger"
-	"github.com/sahmad98/go-ringbuffer"
-	"google.golang.org/grpc"
 	"io"
 	"io/ioutil"
 	"log"
@@ -22,6 +16,12 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"emperror.dev/errors"
+	"github.com/je4/securedisplay/pkg/browser"
+	"github.com/je4/utils/v2/pkg/zLogger"
+	"github.com/sahmad98/go-ringbuffer"
+	"google.golang.org/grpc"
 )
 
 type BrowserClient struct {
@@ -91,7 +91,7 @@ func (client *BrowserClient) GetGroupWebsocket(group string) (*ClientWebsocket, 
 func (client *BrowserClient) SendGroupWebsocket(group string, message []byte) error {
 	ws, err := client.GetGroupWebsocket(group)
 	if err != nil {
-		return emperror.Wrapf(err, "cannot send to group %v", group)
+		return errors.Wrapf(err, "cannot send to group %v", group)
 	}
 	ws.send <- message
 	return nil
@@ -180,13 +180,13 @@ func (client *BrowserClient) Connect() (err error) {
 		Certificates:       certificates,
 	})
 	if err != nil {
-		return emperror.Wrapf(err, "cannot connect to %v", client.addr)
+		return errors.Wrapf(err, "cannot connect to %v", client.addr)
 	}
 	client.log.Info("connection established")
 
 	client.session, err = yamux.Server(client.conn, yamux.DefaultConfig())
 	if err != nil {
-		return emperror.Wrap(err, "cannot setup yamux client")
+		return errors.Wrap(err, "cannot setup yamux client")
 	}
 	client.log.Info("yamux session established")
 
@@ -302,7 +302,7 @@ func (client *BrowserClient) InitProxy() error {
 
 	traceId := uniqid.New(uniqid.Params{"traceid_", false})
 	if err := pw.Init(traceId, client.instance, common.SessionType_Client, client.GetStatus(), client.httpsAddr); err != nil {
-		return emperror.Wrap(err, "cannot initialize client")
+		return errors.Wrap(err, "cannot initialize client")
 	}
 	return nil
 }
@@ -320,7 +320,7 @@ func (client *BrowserClient) ServeGRPC(listener net.Listener) error {
 	// start the gRPC erver
 	client.log.Info("launching gRPC server over TLS connection...")
 	if err := client.grpcServer.Serve(listener); err != nil {
-		return emperror.Wrapf(err, "failed to serve")
+		return errors.Wrapf(err, "failed to serve")
 	}
 	return nil
 }
@@ -357,7 +357,7 @@ func (client *BrowserClient) ntpHandlerFunc() func(data []byte) ([]byte, error) 
 		traceId := uniqid.New(uniqid.Params{"traceid_", false})
 		ret, err := pw.NTPRaw(traceId, data)
 		if err != nil {
-			return nil, emperror.Wrapf(err, "get ntp data from proxy")
+			return nil, errors.Wrapf(err, "get ntp data from proxy")
 		}
 		return ret, nil
 	}
@@ -432,7 +432,7 @@ func (client *BrowserClient) ServeHTTPProxy() error {
 	}
 	listener, err := net.Listen("tcp", client.httpProxy)
 	if err != nil {
-		return emperror.Wrapf(err, "cannot dial to %v", client.httpProxy)
+		return errors.Wrapf(err, "cannot dial to %v", client.httpProxy)
 	}
 
 	// static session in client
@@ -446,7 +446,7 @@ func (client *BrowserClient) ServeHTTPProxy() error {
 	client.fw = common.NewTCPForwarder("[proxy]", 0, getTargetConn, client.log)
 	client.log.Infof("launching external HTTP proxy on %s", client.httpProxy)
 	if err := client.fw.Serve(listener); err != nil {
-		return emperror.Wrapf(err, "error listening on %v", client.httpProxy)
+		return errors.Wrapf(err, "error listening on %v", client.httpProxy)
 	}
 	return nil
 }
@@ -494,7 +494,7 @@ func (client *BrowserClient) ServeHTTPExt() (err error) {
 	err = client.httpServerExt.ListenAndServeTLS(client.httpsCertFile, client.httpsKeyFile)
 	if err != nil {
 		client.httpServerExt = nil
-		return emperror.Wrapf(err, "failed to serve")
+		return errors.Wrapf(err, "failed to serve")
 	}
 	client.httpServerExt = nil
 	return nil
@@ -541,7 +541,7 @@ func (client *BrowserClient) ServeHTTPInt(listener net.Listener) error {
 	// starting http server
 	if err := client.httpServerInt.Serve(listener); err != nil {
 		client.httpServerInt = nil
-		return emperror.Wrapf(err, "failed to serve")
+		return errors.Wrapf(err, "failed to serve")
 	}
 
 	client.httpServerInt = nil
@@ -551,7 +551,7 @@ func (client *BrowserClient) ServeHTTPInt(listener net.Listener) error {
 func (client *BrowserClient) ServeCmux() error {
 	if err := (*client.cmuxServer).Serve(); err != nil {
 		client.cmuxServer = nil
-		return emperror.Wrap(err, "cmux closed")
+		return errors.Wrap(err, "cmux closed")
 	}
 	client.cmuxServer = nil
 	return nil
