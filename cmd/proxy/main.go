@@ -27,9 +27,7 @@ func main() {
 		return
 	}
 	sigint := make(chan os.Signal, 1)
-	signal.Notify(sigint, os.Interrupt)
-	signal.Notify(sigint, syscall.SIGTERM)
-	signal.Notify(sigint, syscall.SIGKILL)
+	signal.Notify(sigint, os.Interrupt, syscall.SIGKILL, syscall.SIGTERM)
 	<-sigint
 	logger.Info().Msg("Received shutdown signal")
 	if err := srv.Stop(); err != nil {
