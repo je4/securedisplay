@@ -3,14 +3,15 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"emperror.dev/errors"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"github.com/je4/utils/v2/pkg/zLogger"
 	"html/template"
 	"net/http"
 	"sync"
 	"time"
+
+	"emperror.dev/errors"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/je4/utils/v2/pkg/zLogger"
 
 	"github.com/gorilla/websocket"
 )
@@ -32,12 +33,11 @@ func NewSocketServer(addr string, logger zLogger.ZLogger) (*SocketServer, error)
 	}, nil
 }
 
-func NewConnection(conn *websocket.Conn, name string, secure bool, acl map[string][]string) *Connection {
+func NewConnection(conn *websocket.Conn, name string, secure bool) *Connection {
 	return &Connection{
 		Secure: secure,
 		Conn:   conn,
 		Name:   name,
-		ACL:    acl,
 	}
 }
 
@@ -45,7 +45,6 @@ type Connection struct {
 	Secure bool
 	Conn   *websocket.Conn
 	Name   string
-	ACL    map[string][]string
 }
 
 func (c *Connection) Close() error {
@@ -163,12 +162,18 @@ func (srv *SocketServer) closeEchoConn(c *websocket.Conn) {
 	}
 }
 
-func (srv *SocketServer) addWSConn(c *Connection, name string) {
-	srv.closeWSConn(name)
+func (srv *SocketServer) addWSConn(c *Connection, name string) error {
+	if conn, ok := srv.getWSConn(name); ok {
+		if conn.Secure && !c.Secure {
+			return errors.Errorf("cannot add insecure connection %s, already have secure connection %s", name, conn.Name)
+		}
+		srv.closeWSConn(name)
+	}
 	srv.wsConnsMu.Lock()
 	defer srv.wsConnsMu.Unlock()
 	srv.logger.Debug().Msgf("Adding connection %s", name)
 	srv.wsConns[name] = c
+	return nil
 }
 
 func (srv *SocketServer) getWSConn(name string) (*Connection, bool) {

@@ -1,16 +1,41 @@
 package event
 
 import (
-	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"emperror.dev/errors"
 )
+
+type DataInterface interface {
+	String() string
+	Type() string
+}
 
 type Message string
 
 func (m Message) String() string {
 	return string(m)
+}
+
+var _ DataInterface = Message("")
+
+func (m Message) Type() string {
+	return "message"
+}
+
+func NewEvent(data DataInterface, target string, token string) (*Event, error) {
+	jsonStr, err := json.Marshal(data)
+	if err != nil {
+		return nil, errors.Wrapf(err, "cannot marshal event data: %v", data)
+	}
+	return &Event{
+		Type:   data.Type(),
+		Target: target,
+		Token:  token,
+		Data:   jsonStr,
+	}, nil
 }
 
 type Event struct {
@@ -25,7 +50,7 @@ func (e *Event) String() string {
 
 }
 
-func (e *Event) Decode() (any, error) {
+func (e *Event) Decode() (DataInterface, error) {
 	switch strings.ToLower(e.Type) {
 	case "message":
 		var msg Message

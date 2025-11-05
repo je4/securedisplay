@@ -1,20 +1,42 @@
 package server
 
 import (
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/je4/securedisplay/pkg/event"
-	"time"
 )
 
 func (srv *SocketServer) ws(ctx *gin.Context) {
+	var secureName string
+	if ctx.Request.TLS != nil {
+		for _, cert := range ctx.Request.TLS.PeerCertificates {
+			for _, name := range cert.DNSNames {
+				if strings.HasPrefix(name, "ws:") {
+					secureName = name[3:]
+					break
+				}
+			}
+			if secureName != "" {
+				break
+			}
+		}
+	}
+
 	conn, err := srv.upgrade(ctx, 10*time.Second)
 	if err != nil {
 		srv.logger.Error().Err(err).Msg("Failed to upgrade connection")
 		return
 	}
 	name := ctx.Param("name")
-	srv.addWSConn(NewConnection(conn, name, false, map[string][]string{"meta": {"global/guest"}, "content": {"global/guest"}, "preview": {"global/guest"}}), name)
+	if err := srv.addWSConn(NewConnection(conn, name, secureName != "" && name == secureName), name); err != nil {
+		srv.logger.Error().Err(err).Msgf("Failed to add connection %s", name)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to add connection"})
+		return
+	}
 	defer srv.closeWSConn(name)
 
 	for {

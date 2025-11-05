@@ -3,8 +3,11 @@ package browser
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
+	"reflect"
+	"time"
+
+	"emperror.dev/errors"
 	"github.com/chromedp/cdproto"
 	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/dom"
@@ -12,20 +15,18 @@ import (
 	"github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
-	"reflect"
-	"time"
+
+	"image"
+	"image/jpeg"
+	"io/ioutil"
+	"os"
 
 	//"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 	"github.com/disintegration/imaging"
-	"github.com/goph/emperror"
 	"github.com/op/go-logging"
 	"golang.org/x/sync/semaphore"
-	"image"
-	"image/jpeg"
-	"io/ioutil"
-	"os"
 )
 
 type Browser struct {
@@ -108,10 +109,10 @@ func (browser *Browser) Startup() error {
 func (browser *Browser) Init(execOptions map[string]interface{}) error {
 	var err error
 
-	// create temporary directory
+	// create a temporary directory
 	browser.TempDir, err = ioutil.TempDir("", "bremote")
 	if err != nil {
-		return emperror.Wrap(err, "cannot create tempdir")
+		return errors.Wrap(err, "cannot create tempdir")
 	}
 
 	// build browser options
@@ -142,7 +143,7 @@ func fullScreenshot(quality int64, res *[]byte, logger *logging.Logger) chromedp
 			// capture screenshot
 			*res, err = page.CaptureScreenshot().Do(ctx)
 			if err != nil {
-				return emperror.Wrapf(err, "cannot capture screenshot")
+				return errors.Wrapf(err, "cannot capture screenshot")
 			}
 			return nil
 		}),
@@ -165,7 +166,7 @@ func (browser *Browser) Screenshot(width int, height int, sigma float64) ([]byte
 
 	var bufIn []byte
 	if err := chromedp.Run(browser.getTimeoutCtx(30*time.Second), fullScreenshot(90, &bufIn, browser.log)); err != nil {
-		return nil, "", emperror.Wrapf(err, "cannot take screenshot")
+		return nil, "", errors.Wrapf(err, "cannot take screenshot")
 	}
 	// full size - no action
 	if width == 0 && height == 0 {
@@ -173,7 +174,7 @@ func (browser *Browser) Screenshot(width int, height int, sigma float64) ([]byte
 	}
 	rawImage, _, err := image.Decode(bytes.NewReader(bufIn))
 	if err != nil {
-		return nil, "", emperror.Wrapf(err, "cannot decode png")
+		return nil, "", errors.Wrapf(err, "cannot decode png")
 	}
 	newraw := imaging.Resize(rawImage, width, 0, imaging.Lanczos)
 	var sharpraw image.Image
@@ -185,7 +186,7 @@ func (browser *Browser) Screenshot(width int, height int, sigma float64) ([]byte
 	bufOut := []byte{}
 	bwriter := bytes.NewBuffer(bufOut)
 	if err := jpeg.Encode(bwriter, sharpraw, nil); err != nil {
-		return nil, "", emperror.Wrapf(err, "cannot encode jpeg")
+		return nil, "", errors.Wrapf(err, "cannot encode jpeg")
 	}
 	bufOut = bwriter.Bytes()
 	return bufOut, "image/jpeg", nil
@@ -214,10 +215,10 @@ func (browser *Browser) Tasks(tasks chromedp.Tasks) error {
 
 	if !browser.IsRunning() {
 		if err := browser.Startup(); err != nil {
-			return emperror.Wrap(err, "cannot re-initialize browser")
+			return errors.Wrap(err, "cannot re-initialize browser")
 		}
 		if err := browser.Run(); err != nil {
-			return emperror.Wrap(err, "cannot re-start browser")
+			return errors.Wrap(err, "cannot re-start browser")
 		}
 	}
 	// run the task in background and return after task is done or timeoiut
@@ -290,10 +291,10 @@ func (browser *Browser) MouseClick(waitVisible string, x, y int64, element strin
 
 	if !browser.IsRunning() {
 		if err := browser.Startup(); err != nil {
-			return emperror.Wrap(err, "cannot re-initialize browser")
+			return errors.Wrap(err, "cannot re-initialize browser")
 		}
 		if err := browser.Run(); err != nil {
-			return emperror.Wrap(err, "cannot re-start browser")
+			return errors.Wrap(err, "cannot re-start browser")
 		}
 	}
 	// run the task in background and return after task is done or timeoiut
