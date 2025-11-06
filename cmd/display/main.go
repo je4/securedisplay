@@ -41,12 +41,15 @@ func main() {
 		logger.Error().Err(err).Msg("Failed to start communication")
 		return
 	}
+	defer func() {
+		logger.Info().Msg("Closing communication")
+		if err := comm.Stop(); err != nil {
+			logger.Error().Err(err).Msg("Failed to stop server")
+		}
+	}()
 
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM, syscall.SIGTERM)
 	<-sigint
 	logger.Info().Msg("Received shutdown signal")
-	if err := comm.Stop(); err != nil {
-		logger.Error().Err(err).Msg("Failed to stop server")
-	}
 }
