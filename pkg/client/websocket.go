@@ -23,7 +23,7 @@ const (
 // BrowserClient is a middleman between the websocket connection and the hub.
 type ClientWebsocket struct {
 	//	hub *Hub
-	client *BrowserClient
+	client *PlayerClient
 	group  string          // the output group
 	conn   *websocket.Conn // The websocket connection.
 	send   chan []byte     // Buffered channel of outbound messages.
