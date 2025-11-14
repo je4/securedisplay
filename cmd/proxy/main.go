@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/je4/securedisplay/pkg/server"
+	"github.com/je4/securedisplay/pkg/proxy"
 	"github.com/rs/zerolog"
 )
 
@@ -17,7 +17,7 @@ func main() {
 	logger := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
 	logger.Info().Msgf("Starting server on %s", *addr)
 
-	srv, err := server.NewSocketServer(*addr, &logger)
+	srv, err := proxy.NewSocketServer(*addr, &logger)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to create server")
 		return
