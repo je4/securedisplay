@@ -17,29 +17,29 @@ type PlayerClient struct {
 	httpServerExt *http.Server
 	player        player.Player
 	wsGroup       map[string]*ClientWebsocket
-	browserLog    *ringbuffer.RingBuffer
+	playerLog     *ringbuffer.RingBuffer
 }
 
 func NewClient(instanceName string, log zLogger.ZLogger) *PlayerClient {
 	client := &PlayerClient{log: log,
-		instance:   instanceName,
-		wsGroup:    make(map[string]*ClientWebsocket),
-		browserLog: ringbuffer.NewRingBuffer(100),
+		instance:  instanceName,
+		wsGroup:   make(map[string]*ClientWebsocket),
+		playerLog: ringbuffer.NewRingBuffer(100),
 	}
 
 	return client
 }
 
 func (client *PlayerClient) writeBrowserLog(format string, a ...interface{}) {
-	client.browserLog.Write(fmt.Sprintf(format, a...))
+	client.playerLog.Write(fmt.Sprintf(format, a...))
 }
 
 func (client *PlayerClient) getBrowserLog() []string {
 	result := []string{}
-	client.browserLog.Reader = client.browserLog.Writer
+	client.playerLog.Reader = client.playerLog.Writer
 	var i int32
-	for ; i < client.browserLog.Size; i++ {
-		elem := client.browserLog.Read()
+	for ; i < client.playerLog.Size; i++ {
+		elem := client.playerLog.Read()
 		str, ok := elem.(string)
 		if !ok {
 			continue
