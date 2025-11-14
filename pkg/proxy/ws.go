@@ -1,4 +1,4 @@
-package server
+package proxy
 
 import (
 	"net/http"
@@ -49,6 +49,7 @@ func (srv *SocketServer) ws(ctx *gin.Context) {
 			}
 			break
 		}
+		event.Source = secureName
 		srv.logger.Debug().Msgf("Received event: %s", event)
 		if event.Target != "" {
 			srv.logger.Debug().Msgf("Sending event to target %s: %s", event.Target, event)
@@ -68,7 +69,7 @@ func (srv *SocketServer) ws(ctx *gin.Context) {
 			if err != nil {
 				srv.logger.Error().Err(err).Msgf("Failed to decode event %s: %s", event.Type, string(event.Data))
 			}
-			_ = eventStruct
+			srv.logger.Warn().Msgf("Received event [%s] with no target", eventStruct)
 		}
 	}
 }
