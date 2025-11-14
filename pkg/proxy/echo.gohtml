@@ -41,8 +41,15 @@
                 if (!ws) {
                     return false;
                 }
+                let event = {
+                    type: "message",    // z.B. "message"
+                    source: "display01",  // z.B. "proxy" oder "display01"
+                    target: "display02",  // z.B. "display02"
+                    token: "",   // z.B. "abc123"
+                    data: input.value   // z.B. String, Objekt oder was auch immer gesendet wird
+                };
                 print("SEND: " + input.value);
-                ws.send(input.value);
+                ws.send(JSON.stringify(event));
                 return false;
             };
 
