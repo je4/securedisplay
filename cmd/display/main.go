@@ -14,7 +14,7 @@ import (
 )
 
 var name = flag.String("name", "display01", "name of the display")
-var proxy = flag.String("proxy", "ws://localhost:8080/ws", "address of the websocket proxy server")
+var proxy = flag.String("proxy", "ws://localhost:7081/ws", "address of the websocket proxy server")
 
 func main() {
 	flag.Parse()
