@@ -40,6 +40,7 @@ func NewEvent(data DataInterface, target string, token string) (*Event, error) {
 
 type Event struct {
 	Type   string          `json:"type"`
+	Source string          `json:"source"`
 	Target string          `json:"target"`
 	Token  string          `json:"token"`
 	Data   json.RawMessage `json:"data"`
