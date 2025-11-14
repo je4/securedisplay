@@ -1,4 +1,4 @@
-package server
+package proxy
 
 import (
 	"context"
@@ -77,7 +77,7 @@ func (srv *SocketServer) Start(tlsConfig *tls.Config) error {
 		AllowWebSockets:  true,
 	}))
 	router.GET("/", func(c *gin.Context) {
-		if err := srv.homeTemplate.Execute(c.Writer, "ws://"+c.Request.Host+"/echo"); err != nil {
+		if err := srv.homeTemplate.Execute(c.Writer, "ws://"+c.Request.Host+"/ws/display01"); err != nil {
 			srv.logger.Error().Err(err).Msg("Failed to execute template")
 		}
 	})
@@ -203,6 +203,7 @@ func (srv *SocketServer) closeWSConn(name string) {
 	}
 }
 
+/*
 func (srv *SocketServer) ping(ctx *gin.Context) {
 	conn, err := srv.upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
@@ -213,6 +214,7 @@ func (srv *SocketServer) ping(ctx *gin.Context) {
 	defer srv.closeEchoConn(conn)
 	srv.logger.Debug().Msg("Ping connection established")
 }
+*/
 
 func (srv *SocketServer) upgrade(ctx *gin.Context, pingInterval time.Duration) (*websocket.Conn, error) {
 	conn, err := srv.upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
