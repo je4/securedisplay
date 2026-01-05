@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"html/template"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func NewSocketServer(addr string, logger zLogger.ZLogger) (*SocketServer, error) {
+func NewSocketServer(addr string, debug bool, logger zLogger.ZLogger) (*SocketServer, error) {
 	tpl, err := template.New("home").Parse(echoTemplate)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse echo home template")
@@ -30,6 +31,9 @@ func NewSocketServer(addr string, logger zLogger.ZLogger) (*SocketServer, error)
 		echoConnsMu:  sync.Mutex{},
 		wsConns:      make(map[string]*Connection),
 		wsConnsMu:    sync.Mutex{},
+		debug:        debug,
+		groups:       make(map[string][]string),
+		groupsMu:     sync.RWMutex{},
 	}, nil
 }
 
@@ -65,6 +69,9 @@ type SocketServer struct {
 	echoConnsMu  sync.Mutex
 	wsConns      map[string]*Connection
 	wsConnsMu    sync.Mutex
+	debug        bool
+	groups       map[string][]string
+	groupsMu     sync.RWMutex
 }
 
 func (srv *SocketServer) Start(tlsConfig *tls.Config) error {
@@ -154,20 +161,24 @@ func (srv *SocketServer) closeEchoConn(c *websocket.Conn) {
 	defer srv.echoConnsMu.Unlock()
 	for i, conn := range srv.echoConns {
 		if conn == c {
+			srv.echoConns = append(srv.echoConns[:i], srv.echoConns[i+1:]...)
 			if err := c.Close(); err != nil {
 				srv.logger.Error().Err(err).Msg("Failed to close connection")
 			}
-			srv.echoConns = append(srv.echoConns[:i], srv.echoConns[i+1:]...)
+			break
 		}
 	}
 }
 
-func (srv *SocketServer) addWSConn(c *Connection, name string) error {
+func (srv *SocketServer) addWSConn(c *Connection) error {
+	name := c.Name
 	if conn, ok := srv.getWSConn(name); ok {
 		if conn.Secure && !c.Secure {
-			return errors.Errorf("cannot add insecure connection %s, already have secure connection %s", name, conn.Name)
+			return errors.Errorf("cannot replace secure connection %s with an insecure connection", name)
 		}
-		srv.closeWSConn(name)
+		srv.closeWSConn(conn)
+		srv.logger.Warn().Msgf("replacing connection %s", name)
+		//return errors.Errorf("cannot add connection %s, already have connectin %s", name, conn.Name)
 	}
 	srv.wsConnsMu.Lock()
 	defer srv.wsConnsMu.Unlock()
@@ -191,15 +202,19 @@ func (srv *SocketServer) removeWSConn(name string) {
 	delete(srv.wsConns, name)
 }
 
-func (srv *SocketServer) closeWSConn(name string) {
+func (srv *SocketServer) closeWSConn(wsConn *Connection) {
 	srv.wsConnsMu.Lock()
 	defer srv.wsConnsMu.Unlock()
-	if conn, ok := srv.wsConns[name]; ok {
-		srv.logger.Debug().Msgf("Closing connection %s", name)
+	if conn, ok := srv.wsConns[wsConn.Name]; ok {
+		if conn.Conn.RemoteAddr() != wsConn.Conn.RemoteAddr() {
+			srv.logger.Debug().Msgf("Connection %s[%s] already closed.", wsConn.Name, wsConn.Conn.RemoteAddr())
+			return
+		}
+		srv.logger.Debug().Msgf("Closing connection %s[%s]", wsConn.Name, wsConn.Conn.RemoteAddr())
 		if err := conn.Close(); err != nil {
 			srv.logger.Error().Err(err).Msg("Failed to close connection")
 		}
-		delete(srv.wsConns, name)
+		delete(srv.wsConns, wsConn.Name)
 	}
 }
 
@@ -216,49 +231,54 @@ func (srv *SocketServer) ping(ctx *gin.Context) {
 }
 */
 
-func (srv *SocketServer) upgrade(ctx *gin.Context, pingInterval time.Duration) (*websocket.Conn, error) {
+func (srv *SocketServer) upgrade(ctx *gin.Context, name string, pingInterval time.Duration) (*websocket.Conn, error) {
 	conn, err := srv.upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to upgrade connection")
 	}
-	conn.SetCloseHandler(func(code int, text string) error {
-		srv.logger.Debug().Msgf("Connection closed from remote: %d %s", code, text)
-		srv.closeEchoConn(conn)
-		return nil
-	})
+	if err := func(connectionCTX *gin.Context, connectionName string) error {
+		conn.SetCloseHandler(func(code int, text string) error {
+			srv.logger.Debug().Msgf("Connection closed from remote %s[%s]: %d %s", connectionName, connectionCTX.Request.RemoteAddr, code, text)
+			srv.closeEchoConn(conn)
+			return nil
+		})
 
-	// Set ping handler
-	conn.SetPingHandler(func(appData string) error {
-		srv.logger.Debug().Msgf("Received ping from client: %s", appData)
-		return nil
-	})
+		// Set ping handler
+		conn.SetPingHandler(func(appData string) error {
+			srv.logger.Debug().Msgf("Received ping from client %s[%s]: %s", connectionName, connectionCTX.Request.RemoteAddr, appData)
+			return nil
+		})
 
-	// Set pong handler
-	conn.SetPongHandler(func(appData string) error {
-		srv.logger.Debug().Msgf("Received pong from client: %s", appData)
+		// Set pong handler
+		conn.SetPongHandler(func(appData string) error {
+			srv.logger.Debug().Msgf("Received pong from client %s[%s]: %s", connectionName, connectionCTX.Request.RemoteAddr, appData)
+			return nil
+		})
+		go func() {
+			for {
+				if err := conn.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(5*time.Second)); err != nil {
+					srv.logger.Error().Err(err).Msg("Failed to send ping")
+					break
+				}
+				select {
+				case <-time.After(pingInterval):
+				case <-ctx.Request.Context().Done():
+					srv.logger.Debug().Msg("Context done, stopping ping")
+					return
+				}
+				srv.logger.Debug().Msgf("Sent ping to client %s[%s]", connectionName, connectionCTX.Request.RemoteAddr)
+			}
+		}()
 		return nil
-	})
-	go func() {
-		for {
-			if err := conn.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(5*time.Second)); err != nil {
-				srv.logger.Error().Err(err).Msg("Failed to send ping")
-				break
-			}
-			select {
-			case <-time.After(pingInterval):
-			case <-ctx.Request.Context().Done():
-				srv.logger.Debug().Msg("Context done, stopping ping")
-				return
-			}
-			srv.logger.Debug().Msg("Sent ping to client")
-		}
-	}()
+	}(ctx, name); err != nil {
+		return nil, errors.Wrap(err, "failed to set connection handlers")
+	}
 
 	return conn, nil
 }
 
 func (srv *SocketServer) echo(ctx *gin.Context) {
-	conn, err := srv.upgrade(ctx, 10*time.Second)
+	conn, err := srv.upgrade(ctx, "", 10*time.Second)
 	if err != nil {
 		srv.logger.Error().Err(err).Msg("Failed to upgrade connection")
 		return
@@ -269,10 +289,10 @@ func (srv *SocketServer) echo(ctx *gin.Context) {
 	for {
 		mt, message, err := conn.ReadMessage()
 		if err != nil {
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
+			if websocket.IsCloseError(errors.Cause(err), websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
 				srv.logger.Debug().Err(err).Msg("Connection closed by client")
 			} else {
-				srv.logger.Error().Err(err).Msg("Failed to read message")
+				srv.logger.Error().Err(err).Msg("Failed to read echo message")
 			}
 			break
 		}
@@ -281,5 +301,37 @@ func (srv *SocketServer) echo(ctx *gin.Context) {
 			srv.logger.Error().Err(err).Msg("Failed to write message")
 			break
 		}
+	}
+}
+
+func (srv *SocketServer) AddToGroup(name string, group string) {
+	srv.groupsMu.Lock()
+	defer srv.groupsMu.Unlock()
+	if _, ok := srv.groups[group]; !ok {
+		srv.groups[group] = []string{}
+	}
+	if !slices.Contains(srv.groups[group], name) {
+		srv.groups[group] = append(srv.groups[group], name)
+	}
+}
+
+func (srv *SocketServer) RemoveFromGroup(name string, group string) {
+	srv.groupsMu.Lock()
+	defer srv.groupsMu.Unlock()
+	if _, ok := srv.groups[group]; !ok {
+		return
+	}
+	slices.DeleteFunc(srv.groups[group], func(s string) bool {
+		return s == name
+	})
+}
+
+func (srv *SocketServer) RemoveFromGroups(name string) {
+	srv.groupsMu.Lock()
+	defer srv.groupsMu.Unlock()
+	for group, _ := range srv.groups {
+		slices.DeleteFunc(srv.groups[group], func(s string) bool {
+			return s == name
+		})
 	}
 }

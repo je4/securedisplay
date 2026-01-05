@@ -3,26 +3,15 @@ package event
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"emperror.dev/errors"
 )
 
+type EventType string
+
 type DataInterface interface {
 	String() string
-	Type() string
-}
-
-type Message string
-
-func (m Message) String() string {
-	return string(m)
-}
-
-var _ DataInterface = Message("")
-
-func (m Message) Type() string {
-	return "message"
+	Type() EventType
 }
 
 func NewEvent(data DataInterface, target string, token string) (*Event, error) {
@@ -39,7 +28,7 @@ func NewEvent(data DataInterface, target string, token string) (*Event, error) {
 }
 
 type Event struct {
-	Type   string          `json:"type"`
+	Type   EventType       `json:"type"`
 	Source string          `json:"source"`
 	Target string          `json:"target"`
 	Token  string          `json:"token"`
@@ -51,15 +40,31 @@ func (e *Event) String() string {
 
 }
 
-func (e *Event) Decode() (DataInterface, error) {
-	switch strings.ToLower(e.Type) {
-	case "message":
-		var msg Message
+func (e *Event) GetType() EventType {
+	return e.Type
+}
+
+func (e *Event) GetSource() string {
+	return e.Source
+}
+
+func (e *Event) GetTarget() string {
+	return e.Target
+}
+
+func (e *Event) GetToken() string {
+	return e.Token
+}
+
+func (e *Event) GetData() (interface{}, error) {
+	switch e.Type {
+	case TypeStringMessage, TypeAttach, TypeDetach:
+		var msg string
 		if err := json.Unmarshal(e.Data, &msg); err != nil {
-			return nil, errors.Wrapf(err, "cannot unmarshal event message: %v", e.Data)
+			return nil, errors.Wrapf(err, "cannot unmarshal StringMessage event message: %v", e.Data)
 		}
 		return msg, nil
 	default:
-		return nil, errors.Errorf("unknown event type: %s", e.Type)
+		return nil, errors.Errorf("unknown event type: %v", e.Type)
 	}
 }

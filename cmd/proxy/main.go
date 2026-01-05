@@ -11,13 +11,14 @@ import (
 )
 
 var addr = flag.String("addr", "localhost:8080", "http service address")
+var debug = flag.Bool("debug", false, "debug mode")
 
 func main() {
 	flag.Parse()
 	logger := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
 	logger.Info().Msgf("Starting server on %s", *addr)
 
-	srv, err := proxy.NewSocketServer(*addr, &logger)
+	srv, err := proxy.NewSocketServer(*addr, *debug, &logger)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to create server")
 		return
