@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
 	"github.com/je4/securedisplay/pkg/proxy"
@@ -11,6 +12,8 @@ import (
 )
 
 var addr = flag.String("addr", "localhost:8080", "http service address")
+var ntpServer = flag.String("ntp", "localhost", "ntp server address")
+var numWorker = flag.Int("workers", runtime.NumCPU(), "number of workers")
 var debug = flag.Bool("debug", false, "debug mode")
 
 func main() {
@@ -18,7 +21,7 @@ func main() {
 	logger := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
 	logger.Info().Msgf("Starting server on %s", *addr)
 
-	srv, err := proxy.NewSocketServer(*addr, *debug, &logger)
+	srv, err := proxy.NewSocketServer(*addr, *numWorker, *ntpServer, *debug, &logger)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to create server")
 		return

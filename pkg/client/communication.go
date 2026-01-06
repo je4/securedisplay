@@ -1,39 +1,41 @@
-package event
+package client
 
 import (
+	"net"
 	"sync"
 	"time"
 
 	"emperror.dev/errors"
 	"github.com/gorilla/websocket"
+	"github.com/je4/securedisplay/pkg/event"
 	"github.com/je4/utils/v2/pkg/zLogger"
 )
 
-type recFuncType func(evt *Event)
+type recFuncType func(evt *event.Event)
 
-func NewCommunication(proxy *websocket.Conn, name string, logger zLogger.ZLogger) *ClientCommunication {
-	return &ClientCommunication{
-		proxy:  proxy,
-		name:   name,
-		logger: logger,
-		wg:     sync.WaitGroup{},
+func NewCommunication(proxy *websocket.Conn, name string, logger zLogger.ZLogger) *Communication {
+	return &Communication{
+		proxyConn: proxy,
+		name:      name,
+		logger:    logger,
+		wg:        sync.WaitGroup{},
 	}
 }
 
-type ClientCommunication struct {
-	proxy   *websocket.Conn
-	name    string
-	recFunc recFuncType
-	logger  zLogger.ZLogger
-	wg      sync.WaitGroup
+type Communication struct {
+	proxyConn *websocket.Conn
+	name      string
+	recFunc   recFuncType
+	logger    zLogger.ZLogger
+	wg        sync.WaitGroup
 }
 
-func (comm *ClientCommunication) Start() error {
+func (comm *Communication) Start() error {
 	go func() {
 		comm.wg.Add(1)
 		defer func() {
 			comm.logger.Info().Msgf("closing connection: %s", comm.name)
-			if err := comm.proxy.Close(); err != nil {
+			if err := comm.proxyConn.Close(); err != nil {
 				comm.logger.Error().Err(err).Msgf("cannot close connection: %s", comm.name)
 			}
 			comm.wg.Done()
@@ -52,6 +54,10 @@ func (comm *ClientCommunication) Start() error {
 				}
 				comm.logger.Error().Err(err).Msgf("cannot read event: %s", comm.name)
 			}
+			switch evt.Type {
+			case event.TypeNTPResponse:
+
+			}
 			if comm.recFunc != nil {
 				comm.recFunc(evt)
 			} else {
@@ -62,9 +68,9 @@ func (comm *ClientCommunication) Start() error {
 	return nil
 }
 
-func (comm *ClientCommunication) Stop() error {
+func (comm *Communication) Stop() error {
 	deadline := time.Now().Add(10 * time.Second)
-	err := comm.proxy.WriteControl(
+	err := comm.proxyConn.WriteControl(
 		websocket.CloseMessage,
 		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
 		deadline,
@@ -81,31 +87,31 @@ func (comm *ClientCommunication) Stop() error {
 	case <-closeChan:
 	case <-time.After(time.Second * 10):
 		comm.logger.Warn().Msgf("timeout waiting for connection to close: %s", comm.name)
-		if err := comm.proxy.Close(); err != nil {
+		if err := comm.proxyConn.Close(); err != nil {
 			return errors.Wrapf(err, "cannot close connection: %s", comm.name)
 		}
 	}
 	return nil
 }
 
-func (comm *ClientCommunication) On(recFunc recFuncType) {
+func (comm *Communication) On(recFunc recFuncType) {
 	comm.recFunc = recFunc
 }
 
-func (comm *ClientCommunication) Receive() (*Event, error) {
-	var evt Event
-	if err := comm.proxy.ReadJSON(&evt); err != nil {
+func (comm *Communication) Receive() (*event.Event, error) {
+	var evt event.Event
+	if err := comm.proxyConn.ReadJSON(&evt); err != nil {
 		return nil, errors.Wrapf(err, "cannot read event")
 	}
 	return &evt, nil
 }
 
-func (comm *ClientCommunication) Send(data DataInterface, target, token string) error {
-	evt, err := NewEvent(data, target, token)
+func (comm *Communication) Send(data event.DataInterface, target, token string) error {
+	evt, err := event.NewEvent(data, target, token)
 	if err != nil {
 		return errors.Wrapf(err, "cannot create event: %v", data)
 	}
-	if err = errors.Wrapf(comm.proxy.WriteJSON(evt), "cannot send event: %v", evt); err != nil {
+	if err = errors.Wrapf(comm.proxyConn.WriteJSON(evt), "cannot send event: %v", evt); err != nil {
 		return errors.Wrapf(err, "cannot send event: %v", evt)
 	}
 	return nil

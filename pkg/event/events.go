@@ -3,6 +3,9 @@ package event
 const TypeAttach EventType = "attach"
 const TypeDetach EventType = "detach"
 const TypeStringMessage EventType = "message"
+const TypeNTPQuery EventType = "ntp-query"
+const TypeNTPResponse EventType = "ntp-response"
+const TypeNTPError EventType = "ntp-error"
 
 func NewGenericStringMessage(t EventType, msg string) DataInterface {
 	return &GenericStringMessage{
@@ -24,15 +27,3 @@ func (m *GenericStringMessage) Type() EventType {
 }
 
 var _ DataInterface = (*GenericStringMessage)(nil)
-
-func NewStringMessage(msg string) DataInterface {
-	return NewGenericStringMessage(TypeStringMessage, msg)
-}
-
-func NewAttach(group string) DataInterface {
-	return NewGenericStringMessage(TypeAttach, group)
-}
-
-func NewDetach(group string) DataInterface {
-	return NewGenericStringMessage(TypeDetach, group)
-}

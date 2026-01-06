@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -45,19 +46,19 @@ func (srv *SocketServer) ws(ctx *gin.Context) {
 		srv.logger.Error().Err(err).Msg("Failed to upgrade connection")
 		return
 	}
-	wsConn := NewConnection(conn, name, secureName != "" && name == secureName)
-	if err := srv.addWSConn(wsConn); err != nil {
+	wsConn := newConnection(conn, name, secureName != "" && name == secureName)
+	if err := srv.connectionManager.addWSConn(wsConn); err != nil {
 		srv.logger.Error().Err(err).Msgf("Failed to add connection %s", name)
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to add connection"})
 		return
 	}
-	defer srv.closeWSConn(wsConn)
+	defer srv.connectionManager.closeWSConn(wsConn)
 
 	for {
 		var evt = &event.Event{}
 		if err := conn.ReadJSON(evt); err != nil {
 			if websocket.IsCloseError(errors.Cause(err), websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
-				srv.logger.Debug().Err(err).Msg("Connection closed by client")
+				srv.logger.Debug().Err(err).Msg("connection closed by client")
 			} else {
 				srv.logger.Error().Err(err).Msg("Failed to read message")
 			}
@@ -65,41 +66,77 @@ func (srv *SocketServer) ws(ctx *gin.Context) {
 		}
 		//event.Source = secureName
 		srv.logger.Debug().Msgf("Received event: %s", evt)
-		if evt.Target != "" {
-			srv.logger.Debug().Msgf("Sending event to target %s: %s", evt.Target, evt)
-			if targetConn, ok := srv.getWSConn(name); ok {
-				if err := targetConn.Conn.WriteJSON(evt); err != nil {
-					if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
-						srv.logger.Debug().Err(err).Msg("Connection closed by client")
-					} else {
-						srv.logger.Error().Err(err).Msgf("Failed to send event to target %s: %s", evt.Target, evt)
-					}
-				}
-			} else {
-				srv.logger.Error().Msgf("Target connection %s not found", evt.Target)
+		switch evt.Type {
+		case event.TypeNTPQuery:
+			if name != evt.GetSource() {
+				srv.logger.Error().Msgf("ntp event for %s on %s not allowed", evt.GetSource(), name)
+				continue
 			}
-		} else {
-			switch evt.Type {
-			case event.TypeAttach:
-				if name != evt.GetSource() {
-					srv.logger.Error().Msgf("Attach event for %s on %s not allowed", evt.GetSource(), name)
-					continue
-				}
-				data, err := evt.GetData()
-				if err != nil {
-					srv.logger.Error().Err(err).Msg("Failed to get data for attach event")
-					continue
-				}
-				group := data.(string)
-				srv.AddToGroup(name, group)
-			case event.TypeDetach:
-
-			}
-			eventStruct, err := event.Decode()
+			data, err := evt.GetData()
 			if err != nil {
-				srv.logger.Error().Err(err).Msgf("Failed to decode event %s: %s", event.Type, string(event.Data))
+				srv.logger.Error().Err(err).Msg("Failed to get raw ntp data")
+				continue
+			}
+			raw := data.([]byte)
+			result, err := srv.ntpFunc(raw)
+			if err != nil {
+				srv.logger.Error().Err(err).Msg("Failed to get raw ntp data")
+				jsonBytes, _ := json.Marshal(err.Error())
+				srv.connectionManager.send(&event.Event{
+					Type:   event.TypeNTPError,
+					Source: "",
+					Target: evt.GetSource(),
+					Token:  "",
+					Data:   jsonBytes,
+				})
+				continue
+			}
+			jsonBytes, _ := json.Marshal(result)
+			if err := srv.connectionManager.send(&event.Event{
+				Type:   event.TypeNTPResponse,
+				Source: "",
+				Target: evt.GetSource(),
+				Token:  "",
+				Data:   jsonBytes,
+			}); err != nil {
+				srv.logger.Error().Err(err).Msg("Failed to send NTP response")
+			}
+		case event.TypeAttach:
+			if name != evt.GetSource() {
+				srv.logger.Error().Msgf("Attach event for %s on %s not allowed", evt.GetSource(), name)
+				continue
+			}
+			data, err := evt.GetData()
+			if err != nil {
+				srv.logger.Error().Err(err).Msg("Failed to get data for attach event")
+				continue
+			}
+			group := data.(string)
+			srv.connectionManager.AddToGroup(name, group)
+		case event.TypeDetach:
+			if name != evt.GetSource() {
+				srv.logger.Error().Msgf("Detach event for %s on %s not allowed", evt.GetSource(), name)
+				continue
+			}
+			data, err := evt.GetData()
+			if err != nil {
+				srv.logger.Error().Err(err).Msg("Failed to get data for detach event")
+				continue
+			}
+			group := data.(string)
+			srv.connectionManager.RemoveFromGroup(name, group)
+		default:
+			if err := srv.connectionManager.send(evt); err != nil {
+				srv.logger.Error().Err(err).Msg("Failed to send event")
+			}
+		}
+		/*
+			eventStruct, err := evt.Decode()
+			if err != nil {
+				srv.logger.Error().Err(err).Msgf("Failed to decode event %s: %s", evt.Type, string(evt.Data))
 			}
 			srv.logger.Warn().Msgf("Received event [%s] with no target", eventStruct)
-		}
+
+		*/
 	}
 }

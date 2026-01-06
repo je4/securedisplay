@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/gorilla/websocket"
-	"github.com/je4/securedisplay/pkg/event"
+	"github.com/je4/securedisplay/pkg/client"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"github.com/rs/zerolog"
 )
@@ -36,7 +36,7 @@ func main() {
 	}
 	defer c.Close()
 
-	comm := event.NewCommunication(c, *name, zlogger)
+	comm := client.NewCommunication(c, *name, zlogger)
 	if err := comm.Start(); err != nil {
 		logger.Error().Err(err).Msg("Failed to start communication")
 		return
