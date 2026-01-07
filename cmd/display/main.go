@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"net/url"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/je4/securedisplay/pkg/client"
+	"github.com/je4/securedisplay/pkg/event"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"github.com/rs/zerolog"
 )
@@ -47,7 +49,20 @@ func main() {
 			logger.Error().Err(err).Msg("Failed to stop server")
 		}
 	}()
-
+	jsonBytes, err := json.Marshal("test")
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to marshal json")
+	}
+	comm.Send(&event.Event{
+		Type:   event.TypeStringMessage,
+		Source: "",
+		Target: "core",
+		Token:  "",
+		Data:   jsonBytes,
+	})
+	if err := comm.NTP(); err != nil {
+		logger.Error().Err(err).Msg("Failed to send NTP")
+	}
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM, syscall.SIGTERM)
 	<-sigint

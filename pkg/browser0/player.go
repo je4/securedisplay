@@ -1,12 +1,14 @@
-package browser
+package browser0
 
 import (
 	"time"
 
+	"github.com/je4/securedisplay/pkg/browser"
+	"github.com/je4/securedisplay/pkg/client"
 	"github.com/je4/securedisplay/pkg/player"
 )
 
-func NewPlayer(name string, browser *Browser) (*Player, error) {
+func NewPlayer(name string, browser *browser.Browser, comm *client.Communication) (*Player, error) {
 	player := &Player{
 		browser: browser,
 		name:    name,
@@ -15,8 +17,9 @@ func NewPlayer(name string, browser *Browser) (*Player, error) {
 }
 
 type Player struct {
-	browser *Browser
+	browser *browser.Browser
 	name    string
+	comm    *client.Communication
 }
 
 func (p *Player) Load(urn string) error {

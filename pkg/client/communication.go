@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"emperror.dev/errors"
+	"github.com/beevik/ntp"
 	"github.com/gorilla/websocket"
 	"github.com/je4/securedisplay/pkg/event"
 	"github.com/je4/utils/v2/pkg/zLogger"
@@ -19,6 +20,7 @@ func NewCommunication(proxy *websocket.Conn, name string, logger zLogger.ZLogger
 		name:      name,
 		logger:    logger,
 		wg:        sync.WaitGroup{},
+		ntpConn:   make(chan<- []byte),
 	}
 }
 
@@ -28,6 +30,18 @@ type Communication struct {
 	recFunc   recFuncType
 	logger    zLogger.ZLogger
 	wg        sync.WaitGroup
+	ntpConn   chan<- []byte
+}
+
+func (comm *Communication) SetNTPReceiver(ch chan<- []byte) {
+	comm.ntpConn = ch
+}
+
+func (comm *Communication) RemoveNTPReceiver() {
+	if comm.ntpConn != nil {
+		close(comm.ntpConn)
+	}
+	comm.ntpConn = nil
 }
 
 func (comm *Communication) Start() error {
@@ -53,15 +67,27 @@ func (comm *Communication) Start() error {
 					return
 				}
 				comm.logger.Error().Err(err).Msgf("cannot read event: %s", comm.name)
+				continue
 			}
+			comm.logger.Debug().Msgf("received event from %s: %s", evt.GetSource(), evt.Type)
 			switch evt.Type {
-			case event.TypeNTPResponse:
-
-			}
-			if comm.recFunc != nil {
-				comm.recFunc(evt)
-			} else {
-				comm.logger.Debug().Msgf("no receiver function set for event: %s", comm.name)
+			case event.TypeNTPResponse, event.TypeNTPError:
+				comm.logger.Debug().Msgf("received NTP event %s from %s: %s", evt.GetType(), evt.GetSource(), evt.Data)
+				if comm.ntpConn == nil {
+					continue
+				}
+				data, err := evt.GetData()
+				if err != nil {
+					comm.logger.Error().Err(err).Msgf("cannot read event: %s", comm.name)
+					continue
+				}
+				comm.ntpConn <- data.([]byte)
+			default:
+				if comm.recFunc != nil {
+					comm.recFunc(evt)
+				} else {
+					comm.logger.Debug().Msgf("no receiver function set for event: %s", comm.name)
+				}
 			}
 		}
 	}()
@@ -106,13 +132,42 @@ func (comm *Communication) Receive() (*event.Event, error) {
 	return &evt, nil
 }
 
-func (comm *Communication) Send(data event.DataInterface, target, token string) error {
-	evt, err := event.NewEvent(data, target, token)
-	if err != nil {
-		return errors.Wrapf(err, "cannot create event: %v", data)
-	}
-	if err = errors.Wrapf(comm.proxyConn.WriteJSON(evt), "cannot send event: %v", evt); err != nil {
+func (comm *Communication) Send(evt *event.Event) error {
+	evt.Source = comm.name
+	/*
+		evt, err := event.NewEvent(data, target, token)
+		if err != nil {
+			return errors.Wrapf(err, "cannot create event: %v", data)
+		}
+	*/
+	if err := errors.Wrapf(comm.proxyConn.WriteJSON(evt), "cannot send event: %v", evt); err != nil {
 		return errors.Wrapf(err, "cannot send event: %v", evt)
 	}
+	return nil
+}
+
+func (comm *Communication) NTP() error {
+	/*
+		resp0, err := ntp.Query("0.beevik-ntp.pool.ntp.org")
+		if err != nil {
+			return errors.Wrapf(err, "cannot get NTP response")
+		}
+		comm.logger.Debug().Msgf("NTP0 response: %v", resp0)
+
+	*/
+
+	conn := newNTPConn(comm)
+	defer conn.Close()
+	options := ntp.QueryOptions{
+		Timeout: 30 * time.Second,
+		Dialer: func(localAddress, remoteAddress string) (net.Conn, error) {
+			return conn, nil
+		},
+	}
+	response, err := ntp.QueryWithOptions("proxy", options)
+	if err != nil {
+		return errors.Wrapf(err, "cannot send NTP request")
+	}
+	comm.logger.Info().Msgf("NTP clock offset: %s", response.ClockOffset)
 	return nil
 }

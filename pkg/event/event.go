@@ -64,7 +64,7 @@ func (e *Event) GetData() (interface{}, error) {
 			return nil, errors.Wrapf(err, "cannot unmarshal StringMessage event message: %v", e.Data)
 		}
 		return msg, nil
-	case TypeNTPQuery, TypeNTPResponse:
+	case TypeNTPQuery, TypeNTPResponse, TypeNTPError:
 		var raw = []byte{}
 		if err := json.Unmarshal(e.Data, &raw); err != nil {
 			return nil, errors.Wrapf(err, "cannot unmarshal NTP event: %v", e.Data)

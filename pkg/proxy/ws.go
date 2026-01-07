@@ -68,6 +68,7 @@ func (srv *SocketServer) ws(ctx *gin.Context) {
 		srv.logger.Debug().Msgf("Received event: %s", evt)
 		switch evt.Type {
 		case event.TypeNTPQuery:
+			srv.logger.Debug().Msgf("Received NTP query from %s: %s", evt.GetSource(), evt.Data)
 			if name != evt.GetSource() {
 				srv.logger.Error().Msgf("ntp event for %s on %s not allowed", evt.GetSource(), name)
 				continue
@@ -92,6 +93,7 @@ func (srv *SocketServer) ws(ctx *gin.Context) {
 				continue
 			}
 			jsonBytes, _ := json.Marshal(result)
+			srv.logger.Debug().Msgf("Sending ntp response to %s: %s - %v", evt.GetSource(), string(jsonBytes), result)
 			if err := srv.connectionManager.send(&event.Event{
 				Type:   event.TypeNTPResponse,
 				Source: "",
