@@ -9,6 +9,8 @@ import (
 	"syscall"
 
 	"github.com/gorilla/websocket"
+	"github.com/je4/securedisplay/pkg/audioplayer"
+	"github.com/je4/securedisplay/pkg/browser"
 	"github.com/je4/securedisplay/pkg/client"
 	"github.com/je4/securedisplay/pkg/event"
 	"github.com/je4/utils/v2/pkg/zLogger"
@@ -63,6 +65,34 @@ func main() {
 	if err := comm.NTP(); err != nil {
 		logger.Error().Err(err).Msg("Failed to send NTP")
 	}
+	opts := map[string]interface{}{
+		"headless":                            false,
+		"start-fullscreen":                    true,
+		"disable-notifications":               true,
+		"disable-infobars":                    true,
+		"disable-gpu":                         false,
+		"allow-insecure-localhost":            true,
+		"enable-immersive-fullscreen-toolbar": true,
+		"views-browser-windows":               false,
+		"kiosk":                               true,
+		"disable-session-crashed-bubble":      true,
+		"incognito":                           true,
+		//"enable-features":                     "PreloadMediaEngagementData,AutoplayIgnoreWebAudio,MediaEngagementBypassAutoplayPolicies",
+		"disable-features": "InfiniteSessionRestore,TranslateUI,PreloadMediaEngagementData,AutoplayIgnoreWebAudio,MediaEngagementBypassAutoplayPolicies",
+		//"no-first-run":                        true,
+		"enable-fullscreen-toolbar-reveal": false,
+		"useAutomationExtension":           false,
+		"enable-automation":                false,
+	}
+	br, err := browser.NewBrowser(opts, &logger, func(s string, i ...interface{}) {
+		logger.Debug().Msgf("browser: %s - %v", s, i)
+	})
+	if err != nil {
+		logger.Panic().Err(err).Msg("Failed to create browser")
+	}
+
+	player := audioplayer.NewPlayer("test", br, comm, &logger)
+	_ = player
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM, syscall.SIGTERM)
 	<-sigint

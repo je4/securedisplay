@@ -7,8 +7,6 @@ import (
 	"emperror.dev/errors"
 )
 
-type EventType string
-
 type DataInterface interface {
 	String() string
 	Type() EventType
@@ -58,19 +56,18 @@ func (e *Event) GetToken() string {
 
 func (e *Event) GetData() (interface{}, error) {
 	switch e.Type {
-	case TypeStringMessage, TypeAttach, TypeDetach:
-		var msg string
-		if err := json.Unmarshal(e.Data, &msg); err != nil {
-			return nil, errors.Wrapf(err, "cannot unmarshal StringMessage event message: %v", e.Data)
-		}
-		return msg, nil
 	case TypeNTPQuery, TypeNTPResponse, TypeNTPError:
 		var raw = []byte{}
 		if err := json.Unmarshal(e.Data, &raw); err != nil {
 			return nil, errors.Wrapf(err, "cannot unmarshal NTP event: %v", e.Data)
 		}
 		return raw, nil
+	//case TypeStringMessage, TypeAttach, TypeDetach:
 	default:
-		return nil, errors.Errorf("unknown event type: %v", e.Type)
+		var msg string
+		if err := json.Unmarshal(e.Data, &msg); err != nil {
+			return nil, errors.Wrapf(err, "cannot unmarshal StringMessage event message: %v", e.Data)
+		}
+		return msg, nil
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
+	"github.com/je4/utils/v2/pkg/zLogger"
 
 	"image"
 	"image/jpeg"
@@ -24,7 +25,6 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 	"github.com/disintegration/imaging"
-	"github.com/op/go-logging"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -36,7 +36,7 @@ type Browser struct {
 	browser     *chromedp.Browser
 	TempDir     string
 	opts        []chromedp.ExecAllocatorOption
-	log         *logging.Logger
+	log         zLogger.ZLogger
 	semAction   *semaphore.Weighted
 	browserLog  func(string, ...interface{})
 }
@@ -44,7 +44,7 @@ type Browser struct {
 // MouseAction are mouse input event actions
 type MouseAction chromedp.Action
 
-func NewBrowser(execOptions map[string]interface{}, log *logging.Logger, browserLogFunc func(string, ...interface{})) (*Browser, error) {
+func NewBrowser(execOptions map[string]interface{}, log zLogger.ZLogger, browserLogFunc func(string, ...interface{})) (*Browser, error) {
 	browser := &Browser{
 		log:        log,
 		semAction:  semaphore.NewWeighted(1),
@@ -66,7 +66,7 @@ func (browser *Browser) Startup() error {
 	browser.allocCtx, browser.allocCancel = chromedp.NewExecAllocator(context.Background(), browser.opts...)
 
 	// also set up a custom logger
-	browser.TaskCtx, browser.taskCancel = chromedp.NewContext(browser.allocCtx, chromedp.WithLogf(browser.log.Debugf))
+	browser.TaskCtx, browser.taskCancel = chromedp.NewContext(browser.allocCtx, chromedp.WithLogf(zLogger.NewZWrapper(browser.log).Debugf))
 
 	chromedp.ListenTarget(browser.TaskCtx, func(ev interface{}) {
 		switch ev := ev.(type) {
@@ -128,7 +128,7 @@ func (browser *Browser) Init(execOptions map[string]interface{}) error {
 // Liberally copied from puppeteer's source.
 //
 // Note: this will override the viewport emulation settings.
-func fullScreenshot(quality int64, res *[]byte, logger *logging.Logger) chromedp.Tasks {
+func fullScreenshot(quality int64, res *[]byte, logger zLogger.ZLogger) chromedp.Tasks {
 	return chromedp.Tasks{
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			// get layout metrics
@@ -136,9 +136,9 @@ func fullScreenshot(quality int64, res *[]byte, logger *logging.Logger) chromedp
 			if err != nil {
 				return err
 			}
-			logger.Debugf("layoutViewport: %v", layoutViewport)
-			logger.Debugf("visualViewport: %v", visualViewport)
-			logger.Debugf("contentSize: %v", contentSize)
+			logger.Debug().Msgf("layoutViewport: %v", layoutViewport)
+			logger.Debug().Msgf("visualViewport: %v", visualViewport)
+			logger.Debug().Msgf("contentSize: %v", contentSize)
 			// capture screenshot
 			*res, err = page.CaptureScreenshot().Do(ctx)
 			if err != nil {
@@ -157,10 +157,10 @@ func (browser *Browser) Screenshot(width int, height int, sigma float64) ([]byte
 	if !browser.semAction.TryAcquire(1) {
 		return nil, "", errors.New("cannot acquire semaphore")
 	}
-	browser.log.Debugf("acquire semaphore")
+	browser.log.Debug().Msgf("acquire semaphore")
 	defer func() {
 		browser.semAction.Release(1)
-		browser.log.Debugf("release semaphore")
+		browser.log.Debug().Msgf("release semaphore")
 	}()
 
 	var bufIn []byte
@@ -206,10 +206,10 @@ func (browser *Browser) IsRunning() bool {
 func (browser *Browser) Tasks(tasks chromedp.Tasks) error {
 	// screenshot is resource intense. wait until done...
 	browser.semAction.Acquire(context.Background(), 1)
-	browser.log.Debugf("acquire semaphore")
+	browser.log.Debug().Msgf("acquire semaphore")
 	defer func() {
 		browser.semAction.Release(1)
-		browser.log.Debugf("release semaphore")
+		browser.log.Debug().Msgf("release semaphore")
 	}()
 
 	if !browser.IsRunning() {
@@ -223,9 +223,9 @@ func (browser *Browser) Tasks(tasks chromedp.Tasks) error {
 	// run the task in background and return after task is done or timeoiut
 	c1 := make(chan bool, 1)
 	go func() {
-		browser.log.Debugf("tasks started")
+		browser.log.Debug().Msgf("tasks started")
 		if err := chromedp.Run(browser.TaskCtx, tasks); err != nil {
-			browser.log.Errorf("error running task: %v", err)
+			browser.log.Error().Msgf("error running task: %v", err)
 			c1 <- false
 			return
 		}
@@ -233,20 +233,20 @@ func (browser *Browser) Tasks(tasks chromedp.Tasks) error {
 	}()
 	select {
 	case res := <-c1:
-		browser.log.Debugf("tasks returned: %v", res)
+		browser.log.Debug().Msgf("tasks returned: %v", res)
 	case <-time.After(5 * time.Second):
-		browser.log.Debugf("tasks timed out")
+		browser.log.Debug().Msgf("tasks timed out")
 	}
 	return nil
 }
 
 func (browser *Browser) Run() error {
-	browser.log.Debug("running browser")
+	browser.log.Debug().Msg("running browser")
 	c1 := make(chan bool, 1)
 	go func() {
-		browser.log.Debugf("tasks started")
+		browser.log.Debug().Msgf("tasks started")
 		if err := chromedp.Run(browser.TaskCtx); err != nil {
-			browser.log.Errorf("cannot start chrome: %v", err)
+			browser.log.Error().Msgf("cannot start chrome: %v", err)
 			c1 <- false
 			return
 		}
@@ -254,16 +254,16 @@ func (browser *Browser) Run() error {
 	}()
 	select {
 	case res := <-c1:
-		browser.log.Debugf("tasks returned: %v", res)
+		browser.log.Debug().Msgf("tasks returned: %v", res)
 	case <-time.After(5 * time.Second):
-		browser.log.Debugf("tasks timed out")
+		browser.log.Debug().Msgf("tasks timed out")
 	}
 	return nil
 }
 
 func (browser *Browser) Close() {
 	// all paranoia...
-	browser.log.Debug("closing browser")
+	browser.log.Debug().Msg("closing browser")
 
 	if browser.taskCancel != nil {
 		browser.taskCancel()
@@ -282,10 +282,10 @@ func (browser *Browser) Close() {
 func (browser *Browser) MouseClick(waitVisible string, x, y int64, element string, timeout time.Duration) error {
 	// screenshot is resource intense. wait until done...
 	browser.semAction.Acquire(context.Background(), 1)
-	browser.log.Debugf("acquire semaphore")
+	browser.log.Debug().Msgf("acquire semaphore")
 	defer func() {
 		browser.semAction.Release(1)
-		browser.log.Debugf("release semaphore")
+		browser.log.Debug().Msgf("release semaphore")
 	}()
 
 	if !browser.IsRunning() {
@@ -299,7 +299,7 @@ func (browser *Browser) MouseClick(waitVisible string, x, y int64, element strin
 	// run the task in background and return after task is done or timeoiut
 	c1 := make(chan bool, 1)
 	go func() {
-		browser.log.Debugf("mouseclick started")
+		browser.log.Debug().Msgf("mouseclick started")
 		actions := []chromedp.Action{}
 		if waitVisible != "" {
 			actions = append(actions, chromedp.WaitVisible(waitVisible, chromedp.ByQuery))
@@ -312,7 +312,7 @@ func (browser *Browser) MouseClick(waitVisible string, x, y int64, element strin
 		ctx, cancel := context.WithTimeout(browser.TaskCtx, timeout)
 		defer cancel()
 		if err := chromedp.Run(ctx, actions...); err != nil {
-			browser.log.Errorf("error running mouseclick: %v", err)
+			browser.log.Error().Msgf("error running mouseclick: %v", err)
 			c1 <- false
 			return
 		}
@@ -320,9 +320,9 @@ func (browser *Browser) MouseClick(waitVisible string, x, y int64, element strin
 	}()
 	select {
 	case res := <-c1:
-		browser.log.Debugf("mousclick returned: %v", res)
+		browser.log.Debug().Msgf("mousclick returned: %v", res)
 	case <-time.After(5 * time.Second):
-		browser.log.Debugf("mouseclick timed out")
+		browser.log.Debug().Msgf("mouseclick timed out")
 	}
 	return nil
 }

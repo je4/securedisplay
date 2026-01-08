@@ -1,12 +1,5 @@
 package event
 
-const TypeAttach EventType = "attach"
-const TypeDetach EventType = "detach"
-const TypeStringMessage EventType = "message"
-const TypeNTPQuery EventType = "ntp-query"
-const TypeNTPResponse EventType = "ntp-response"
-const TypeNTPError EventType = "ntp-error"
-
 func NewGenericStringMessage(t EventType, msg string) DataInterface {
 	return &GenericStringMessage{
 		type_: t,
