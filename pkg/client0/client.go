@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"emperror.dev/errors"
-	"github.com/je4/securedisplay/pkg/player"
+	"github.com/je4/securedisplay/pkg/player0"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"github.com/sahmad98/go-ringbuffer"
 )
@@ -15,7 +15,7 @@ type PlayerClient struct {
 	log           zLogger.ZLogger
 	instance      string
 	httpServerExt *http.Server
-	player        player.Player
+	player        player0.Player
 	wsGroup       map[string]*ClientWebsocket
 	playerLog     *ringbuffer.RingBuffer
 }
@@ -49,7 +49,7 @@ func (client *PlayerClient) getBrowserLog() []string {
 	return result
 }
 
-func (client *PlayerClient) SetPlayer(player player.Player) error {
+func (client *PlayerClient) SetPlayer(player player0.Player) error {
 	if client.player != nil {
 		return errors.New("browser already exists")
 	}
@@ -84,7 +84,7 @@ func (client *PlayerClient) SendGroupWebsocket(group string, message []byte) err
 
 }
 
-func (client *PlayerClient) GetBrowser() (player.Player, error) {
+func (client *PlayerClient) GetBrowser() (player0.Player, error) {
 	if client.player == nil {
 		return nil, errors.New("browser not initialized")
 	}

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <script src="/static/js/reconnecting-websocket.js"></script>
+    <script>
+        window.addEventListener("load", function(evt) {
+
+            var output = document.getElementById("output");
+            var input = document.getElementById("input");
+            var ws;
+
+            var print = function(message) {
+                var d = document.createElement("div");
+                d.textContent = message;
+                output.appendChild(d);
+                output.scroll(0, output.scrollHeight);
+            };
+
+            ws = new WebSocket("{{ .Addr }}");
+            ws.addEventListener("error", (e) => {
+                console.log(`WS ERROR`, e);
+            });
+            ws.onopen = function(evt) {
+                print("OPEN");
+                ws.send(JSON.stringify({
+                    type: "attach",    // z.B. "message"
+                    source: {{ .Name }},  // z.B. "proxy" oder "display01"
+                    target: "",  // z.B. "display02"
+                    token: "",   // z.B. "abc123"
+                    data: "core"   // z.B. String, Objekt oder was auch immer gesendet wird
+                }))
+            }
+            ws.onclose = function(evt) {
+                print("CLOSE");
+                ws = null;
+            }
+            ws.onmessage = function(evt) {
+                print("RESPONSE: " + evt.data);
+            }
+            ws.onerror = function(evt) {
+                print("ERROR: " + evt.data);
+            }
+
+
+            document.getElementById("send").onclick = function(evt) {
+                if (!ws) {
+                    return false;
+                }
+                let event = {
+                    type: "message",    // z.B. "message"
+                    source: {{ .Name }},  // z.B. "proxy" oder "display01"
+                    target: "core",  // z.B. "display02"
+                    token: "",   // z.B. "abc123"
+                    data: input.value   // z.B. String, Objekt oder was auch immer gesendet wird
+                };
+                print("SEND: " + input.value);
+                ws.send(JSON.stringify(event));
+                return false;
+            };
+
+            document.getElementById("close").onclick = function(evt) {
+                if (!ws) {
+                    return false;
+                }
+                ws.close();
+                return false;
+            };
+
+        });
+    </script>
+</head>
+<body>
+<table>
+    <tr><td valign="top" width="50%">
+            <p>Click "Open" to create a connection to the server,
+                "Send" to send a message to the server and "Close" to close the connection.
+                You can change the message and send multiple times.
+            <p>
+            <form>
+                <button id="open">Open</button>
+                <button id="close">Close</button>
+                <p><input id="input" type="text" value="Hello world!">
+                    <button id="send">Send</button>
+            </form>
+        </td><td valign="top" width="50%">
+            <div id="output" style="max-height: 70vh;overflow-y: scroll;"></div>
+        </td></tr></table>
+</body>
+</html>

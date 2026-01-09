@@ -1,4 +1,4 @@
-package player
+package player0
 
 import "time"
 

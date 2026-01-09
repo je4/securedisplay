@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"html/template"
+	"io/fs"
 	"net/http"
 	"slices"
 	"sync"
@@ -17,16 +18,12 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func NewSocketServer(addr string, numWorkers int, ntpServer string, debug bool, logger zLogger.ZLogger) (*SocketServer, error) {
-	tpl, err := template.New("home").Parse(echoTemplate)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse echo home template")
-	}
+func NewSocketServer(addr string, numWorkers int, ntpServer string, staticFS fs.FS, templateFS fs.FS, debug bool, logger zLogger.ZLogger) (*SocketServer, error) {
 	ss := &SocketServer{
 		Addr:              addr,
 		upgrader:          websocket.Upgrader{},
 		logger:            logger,
-		homeTemplate:      tpl,
+		templates:         make(map[string]*template.Template),
 		echoConns:         make([]*websocket.Conn, 0),
 		echoConnsMu:       sync.Mutex{},
 		wsConns:           make(map[string]*connection),
@@ -38,6 +35,8 @@ func NewSocketServer(addr string, numWorkers int, ntpServer string, debug bool, 
 		numWorkers:        numWorkers,
 		ntpServer:         ntpServer,
 		ntpFunc:           NewNTPConnection(ntpServer, "", "", "", 0, 0),
+		templateFS:        templateFS,
+		staticFS:          staticFS,
 	}
 	return ss, nil
 }
@@ -48,7 +47,7 @@ type SocketServer struct {
 	srv               *http.Server
 	logger            zLogger.ZLogger
 	wg                sync.WaitGroup
-	homeTemplate      *template.Template
+	templates         map[string]*template.Template
 	echoConns         []*websocket.Conn
 	echoConnsMu       sync.Mutex
 	wsConns           map[string]*connection
@@ -60,6 +59,22 @@ type SocketServer struct {
 	numWorkers        int
 	ntpServer         string
 	ntpFunc           func(data []byte) ([]byte, error)
+	templateFS        fs.FS
+	staticFS          fs.FS
+}
+
+func (ss *SocketServer) getTemplate(name string) (*template.Template, error) {
+	if tmpl, ok := ss.templates[name]; ok {
+		return tmpl, nil
+	}
+	tmpl, err := template.New(name).ParseFS(ss.templateFS, name)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse template %s", name)
+	}
+	if !ss.debug {
+		ss.templates[name] = tmpl
+	}
+	return tmpl, nil
 }
 
 func (srv *SocketServer) Start(tlsConfig *tls.Config) error {
@@ -72,12 +87,50 @@ func (srv *SocketServer) Start(tlsConfig *tls.Config) error {
 		AllowWebSockets:  true,
 	}))
 	srv.connectionManager.start(srv.numWorkers)
-	router.GET("/:name", func(c *gin.Context) {
+	router.StaticFS("/static", http.FS(srv.staticFS))
+	router.GET("/control/:name", func(c *gin.Context) {
 		var name = c.Param("name")
 		if name == "" {
 			name = "noname"
 		}
-		if err := srv.homeTemplate.Execute(c.Writer, struct{ Addr, Name string }{
+		controlTemplate, err := srv.getTemplate("control.gohtml")
+		if err != nil {
+			srv.logger.Error().Err(err).Msgf("Failed to get template control.gohtml")
+			return
+		}
+		if err := controlTemplate.Execute(c.Writer, struct{ Addr, Name string }{
+			Addr: "ws://" + c.Request.Host + "/ws/" + name,
+			Name: name}); err != nil {
+			srv.logger.Error().Err(err).Msg("Failed to execute template")
+		}
+	})
+	router.GET("/roundaudio/:name", func(c *gin.Context) {
+		var name = c.Param("name")
+		if name == "" {
+			name = "noname"
+		}
+		roundaudioTemplate, err := srv.getTemplate("roundaudio.gohtml")
+		if err != nil {
+			srv.logger.Error().Err(err).Msgf("Failed to get template roundaudio.gohtml")
+			return
+		}
+		if err := roundaudioTemplate.Execute(c.Writer, struct{ Addr, Name string }{
+			Addr: "ws://" + c.Request.Host + "/ws/" + name,
+			Name: name}); err != nil {
+			srv.logger.Error().Err(err).Msg("Failed to execute template")
+		}
+	})
+	router.GET("/test/:name", func(c *gin.Context) {
+		var name = c.Param("name")
+		if name == "" {
+			name = "noname"
+		}
+		testTemplate, err := srv.getTemplate("echo.gohtml")
+		if err != nil {
+			srv.logger.Error().Err(err).Msgf("Failed to get template %s", name)
+			return
+		}
+		if err := testTemplate.Execute(c.Writer, struct{ Addr, Name string }{
 			Addr: "ws://" + c.Request.Host + "/ws/" + name,
 			Name: name}); err != nil {
 			srv.logger.Error().Err(err).Msg("Failed to execute template")

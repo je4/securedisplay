@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/url"
 	"reflect"
 	"time"
 
@@ -357,4 +358,22 @@ func MouseClickXYAction(x, y float64, opts ...chromedp.MouseOption) MouseAction 
 // mousePressed and mouseReleased event) to the X, Y location.
 func MouseClickElementAction(element string, opts ...chromedp.MouseOption) MouseAction {
 	return chromedp.Click(element, chromedp.NodeVisible)
+}
+
+func (browser *Browser) Navigate(u *url.URL) error {
+	if !browser.IsRunning() {
+		if err := browser.Startup(); err != nil {
+			return errors.Wrap(err, "could not start browser")
+		}
+	}
+
+	tasks := chromedp.Tasks{
+		chromedp.Navigate(u.String()),
+		chromedp.WaitReady("body"),
+		//		browser.MouseClickXYAction(2,2),
+	}
+	if err := browser.Tasks(tasks); err != nil {
+		return errors.Wrapf(err, "could not navigate to %s", u.String())
+	}
+	return nil
 }

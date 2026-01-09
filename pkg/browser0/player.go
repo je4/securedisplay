@@ -5,7 +5,7 @@ import (
 
 	"github.com/je4/securedisplay/pkg/browser"
 	"github.com/je4/securedisplay/pkg/client"
-	"github.com/je4/securedisplay/pkg/player"
+	"github.com/je4/securedisplay/pkg/player0"
 )
 
 func NewPlayer(name string, browser *browser.Browser, comm *client.Communication) (*Player, error) {
@@ -72,4 +72,4 @@ func (p *Player) Init() error {
 	panic("implement me")
 }
 
-var _ player.Player = (*Player)(nil)
+var _ player0.Player = (*Player)(nil)
