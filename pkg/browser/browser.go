@@ -3,9 +3,11 @@ package browser
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"reflect"
+	"strconv"
 	"time"
 
 	"emperror.dev/errors"
@@ -376,4 +378,27 @@ func (browser *Browser) Navigate(u *url.URL) error {
 		return errors.Wrapf(err, "could not navigate to %s", u.String())
 	}
 	return nil
+}
+
+func (browser *Browser) Evaluate(function string, param interface{}) (string, error) {
+	if !browser.IsRunning() {
+		return "", errors.New("could not evaluate function - browser is not running")
+	}
+	paramBytes, err := json.Marshal(param)
+	if err != nil {
+		return "", errors.Wrapf(err, "could not marshal parameter for function %s", function)
+	}
+	var evalStr = fmt.Sprintf("%s(%s)", function, strconv.Quote(string(paramBytes)))
+	var res *string
+	if err := browser.Tasks(
+		chromedp.Tasks{
+			chromedp.Evaluate(evalStr, &res),
+		},
+	); err != nil {
+		return "", errors.Wrapf(err, "could not evaluate function %s", function)
+	}
+	if res != nil {
+		return *res, nil
+	}
+	return "", nil
 }

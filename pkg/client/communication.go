@@ -25,12 +25,13 @@ func NewCommunication(proxy *websocket.Conn, name string, logger zLogger.ZLogger
 }
 
 type Communication struct {
-	proxyConn *websocket.Conn
-	name      string
-	recFunc   recFuncType
-	logger    zLogger.ZLogger
-	wg        sync.WaitGroup
-	ntpConn   chan<- []byte
+	proxyConn   *websocket.Conn
+	name        string
+	recFunc     recFuncType
+	logger      zLogger.ZLogger
+	wg          sync.WaitGroup
+	ntpConn     chan<- []byte
+	ClockOffset time.Duration
 }
 
 func (comm *Communication) SetNTPReceiver(ch chan<- []byte) {
@@ -169,5 +170,6 @@ func (comm *Communication) NTP() error {
 		return errors.Wrapf(err, "cannot send NTP request")
 	}
 	comm.logger.Info().Msgf("NTP clock offset: %s", response.ClockOffset)
+	comm.ClockOffset = response.ClockOffset
 	return nil
 }
