@@ -1,6 +1,79 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+        }
+        .gradient-box {
+            position: relative;
+            width: 1024px;
+            height: 1024px;
+            background:
+                    radial-gradient(circle, transparent 0%, black 80%),
+                    url("/static/unibasel.svg") no-repeat center;
+            background-size: cover, 60%; /* SVG auf 60% Größe für Dezentheit */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1a1a1a;
+            font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
+        }
+
+        .center-info {
+            position: absolute;
+            text-align: center;
+            z-index: 10;
+            /* Optional: Ein leichter Schatten macht den Text auf dem Gradienten lesbarer */
+            /* text-shadow: 0 0 10px rgba(0,0,0,0.5); */
+            text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.1);
+        }
+        .time-display {
+            font-size: 110px;
+            font-weight: 800; /* Dickere Schrift wirkt bei dunklen Farben oft besser */
+            letter-spacing: 20px;
+            margin-bottom: 5px;
+        }
+
+        .track-info {
+            font-size: 18px;
+            letter-spacing: 8px;
+            opacity: 0.9;
+            /* Eine dunkle Trennlinie */
+            border-top: 2px solid #1a1a1a;
+            padding-top: 15px;
+            margin-top: 10px;
+        }
+
+        .progress-svg {
+            transform: rotate(-90deg);
+            width: 900px;
+            height: 900px;
+        }
+
+        .progress-background {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.05);
+            stroke-width: 25;
+        }
+
+        .progress-bar {
+            fill: none;
+            stroke: #A5D7D2;
+            stroke-width: 50;
+            stroke-linecap: butt;
+            stroke-dasharray: 2513;
+            --progress: 60;
+            stroke-dashoffset: calc(2513 - (2513 * var(--progress)) / 100);
+            transition: stroke-dashoffset 0.5s ease;
+
+            /* Hier wird der Unschärfe-Filter zugewiesen */
+            filter: url(#blur-filter);
+        }
+    </style>
+</head>
+<head>
     <meta charset="utf-8">
     <script>
         function event(evt) {
@@ -9,7 +82,23 @@
     </script>
 </head>
 <body>
-<h1>Audio Player</h1>
-<div id="output" style="max-height: 70vh;overflow-y: scroll;"></div>
+<div class="gradient-box">
+    <div class="center-info">
+        <div class="time-display">03:45</div>
+        <div class="track-info">Titel des Werkes</div>
+    </div>
+    <svg class="progress-svg" viewBox="0 0 1000 1000">
+        <defs>
+            <!-- Definition des Unschärfe-Filters -->
+            <filter id="blur-filter" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="8" />
+            </filter>
+        </defs>
+        <!--
+        <circle class="progress-background" cx="500" cy="500" r="400"></circle>
+        -->
+        <circle class="progress-bar" cx="500" cy="500" r="400"></circle>
+    </svg>
+</div>
 </body>
 </html>
