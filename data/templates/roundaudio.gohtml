@@ -145,6 +145,14 @@
             switch (evt.type) {
                 case "load":
                     console.log( "loading " + dataObject )
+                    if (audio != null ) {
+                        audio.pause()
+                        audio = null;
+                        timedisplay.textContent = "";
+                        infodisplay.textContent = "";
+                        document.documentElement.style.setProperty('--progress', 0)
+                    }
+                    doPlay = true
                     audio = new Audio(dataObject)
                     audio.autoplay = false
                     audio.load()
@@ -164,7 +172,7 @@
                     audio.addEventListener("timeupdate", (event) => {
                         percent = 100*audio.currentTime/audio.duration
                         document.documentElement.style.setProperty('--progress', percent)
-                        timedisplay.textContent = formatDuration(audio.currentTime) + " / " + formatDuration(audio.duration)
+                        if ( !isNaN(audio.duration) ) timedisplay.textContent = formatDuration(audio.currentTime) + "/" + formatDuration(audio.duration)
                         if (Math.floor(audio.currentTime) > currtime ) {
                             currtime = Math.floor(audio.currentTime)
                             logStatus()
