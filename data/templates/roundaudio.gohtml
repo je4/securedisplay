@@ -2,6 +2,10 @@
 <html>
 <head>
     <style>
+        :root {
+            --progress: 0;
+        }
+
         body {
             padding: 0;
             margin: 0;
@@ -18,7 +22,7 @@
             align-items: center;
             justify-content: center;
             color: #1a1a1a;
-            font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
+            font-family: 'Courier New', Courier, monospace;
         }
 
         .center-info {
@@ -30,9 +34,9 @@
             text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.1);
         }
         .time-display {
-            font-size: 110px;
+            font-size: 60px;
             font-weight: 800; /* Dickere Schrift wirkt bei dunklen Farben oft besser */
-            letter-spacing: 20px;
+            letter-spacing: 3px;
             margin-bottom: 5px;
         }
 
@@ -47,7 +51,7 @@
         }
 
         .progress-svg {
-            transform: rotate(-90deg);
+            transform: rotate(-90deg) scaleY(-1);
             width: 900px;
             height: 900px;
         }
@@ -64,7 +68,7 @@
             stroke-width: 50;
             stroke-linecap: butt;
             stroke-dasharray: 2513;
-            --progress: 60;
+
             stroke-dashoffset: calc(2513 - (2513 * var(--progress)) / 100);
             transition: stroke-dashoffset 0.5s ease;
 
@@ -76,16 +80,151 @@
 <head>
     <meta charset="utf-8">
     <script>
-        function event(evt) {
+        let timedisplay;
+        let infodisplay;
+        window.addEventListener("load", function(evt) {
+            timedisplay = document.getElementById("time")
+            infodisplay = document.getElementById("info")
+        });
+
+        function formatDuration(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+
+            const paddedSecs = secs.toString().padStart(2, '0');
+
+            if (hrs > 0) {
+                // Wenn Stunden vorhanden sind, werden auch Minuten zweistellig formatiert
+                const paddedMins = mins.toString().padStart(2, '0');
+                return `${hrs}:${paddedMins}:${paddedSecs}`;
+            } else {
+                // Nur Minuten und Sekunden
+                return `${mins}:${paddedSecs}`;
+            }
+        }
+
+        let audio = null
+        let currtime = 0
+        let status = ""
+        let doPlay = true
+
+        function logStatus() {
+            if ( audio == null ) {
+                console.log("no audio")
+                return
+            }
+            console.log({
+                currentTime: audio.currentTime,
+                duration: audio.duration,
+                muted: audio.muted,
+                volume: audio.volume,
+                paused: audio.paused,
+                systemTime: (new Date()).getTime(),
+                status: status,
+            })
+        }
+
+        function getStatus() {
+            if (audio == null) return null;
+            return JSON.stringify({
+                currentTime: audio.currentTime,
+                duration: audio.duration,
+                muted: audio.muted,
+                volume: audio.volume,
+                paused: audio.paused,
+                systemTime: (new Date()).getTime(),
+                status: status,
+            })
+        }
+
+        function event(evtJSON) {
+            evt = JSON.parse(evtJSON)
             console.log(evt)
+            dataObject = JSON.parse(evt.data)
+            switch (evt.type) {
+                case "load":
+                    console.log( "loading " + dataObject )
+                    audio = new Audio(dataObject)
+                    audio.autoplay = false
+                    audio.load()
+                    audio.addEventListener("loadeddata", () => {
+                        let duration = formatDuration(audio.duration);
+                        console.log("duration: " + duration)
+                        // The duration variable now holds the duration (in seconds) of the audio clip
+                    });
+                    audio.addEventListener("canplaythrough", (event) => {
+                        /* the audio is now playable; play it if permissions allow */
+                        if (doPlay) {
+                            audio.play();
+                            audio.muted = false;
+                            doPlay = false;
+                        }
+                    });
+                    audio.addEventListener("timeupdate", (event) => {
+                        percent = 100*audio.currentTime/audio.duration
+                        document.documentElement.style.setProperty('--progress', percent)
+                        timedisplay.textContent = formatDuration(audio.currentTime) + " / " + formatDuration(audio.duration)
+                        if (Math.floor(audio.currentTime) > currtime ) {
+                            currtime = Math.floor(audio.currentTime)
+                            logStatus()
+                        }
+                    });
+                    audio.addEventListener("ended", (event) => {
+                        console.log("event: ended")
+                        status = "ended"
+                        logStatus()
+                    })
+                    audio.addEventListener("play", (event) => {
+                        console.log("event: play")
+                        status = "play"
+                        logStatus()
+                    })
+                    audio.addEventListener("seeked", (event) => {
+                        console.log("event: seeked")
+                        status = "seeked"
+                        logStatus()
+                    })
+                    break;
+                case "play":
+                    console.log("play")
+                    audio.play()
+                    logStatus()
+                    break;
+                case "pause":
+                    console.log("pause")
+                    audio.pause()
+                    logStatus()
+                    break;
+                case "stop":
+                    console.log("stop")
+                    audio.pause()
+                    audio.currentTime = 0
+                    currtime = 0
+                    logStatus()
+                    break;
+                case "unload":
+                    console.log("unload")
+                    if (audio == null) {
+                        console.log( "no audio")
+                        break
+                    }
+                    audio.pause()
+                    audio = null;
+                    timedisplay.textContent = "";
+                    infodisplay.textContent = "";
+                    document.documentElement.style.setProperty('--progress', 0)
+                    logStatus()
+                    break;
+            }
         }
     </script>
 </head>
 <body>
 <div class="gradient-box">
     <div class="center-info">
-        <div class="time-display">03:45</div>
-        <div class="track-info">Titel des Werkes</div>
+        <div id="time" class="time-display"></div>
+        <div id="info" class="track-info"></div>
     </div>
     <svg class="progress-svg" viewBox="0 0 1000 1000">
         <defs>
