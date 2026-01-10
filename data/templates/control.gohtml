@@ -7,7 +7,9 @@
         window.addEventListener("load", function(evt) {
 
             var output = document.getElementById("output");
-            var input = document.getElementById("input");
+            var data = document.getElementById("data");
+            var type = document.getElementById("type")
+            var target = document.getElementById("target")
             var ws;
 
             var print = function(message) {
@@ -48,13 +50,13 @@
                     return false;
                 }
                 let event = {
-                    type: "message",    // z.B. "message"
+                    type: type.value,    // z.B. "message"
                     source: {{ .Name }},  // z.B. "proxy" oder "display01"
-                    target: "core",  // z.B. "display02"
+                    target: target.value,  // z.B. "display02"
                     token: "",   // z.B. "abc123"
-                    data: input.value   // z.B. String, Objekt oder was auch immer gesendet wird
+                    data: data.value   // z.B. String, Objekt oder was auch immer gesendet wird
                 };
-                print("SEND: " + input.value);
+                print("SEND: " + JSON.stringify(event));
                 ws.send(JSON.stringify(event));
                 return false;
             };
@@ -78,9 +80,18 @@
                 You can change the message and send multiple times.
             <p>
             <form>
-                <button id="open">Open</button>
-                <button id="close">Close</button>
-                <p><input id="input" type="text" value="Hello world!">
+                <select id="type">
+                    <option selected="selected" value="message">Message</option>
+                    <option value="attach">Attach</option>
+                    <option value="detach">Detach</option>
+                    <option value="load">Load</option>
+                    <option value="unload">Unload</option>
+                    <option value="play">Play</option>
+                    <option value="pause">Pause</option>
+                    <option value="stop">Stop</option>
+                </select>
+                <p><input id="target" type="text" value="core">
+                <p><input id="data" type="text" value="">
                     <button id="send">Send</button>
             </form>
         </td><td valign="top" width="50%">
