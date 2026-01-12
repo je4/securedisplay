@@ -1,0 +1,18 @@
+[cert]
+type = "minivault"
+initialtimeout = "1h"
+[cert.minivault]
+baseurl = "https://localhost:8759/api/v1"
+parenttoken = "pa.22278aaec77dfa04.aa01b42c3c04c77c" #pa.2dc483e73851c137.15d94e61e0b377f1
+tokentype = "server_cert"
+tokenpolicies = ["ubmedia.mediaserverdeleter"]
+tokeninterval = "48h"
+tokenttl = "96h"
+certtype = "server_cert"
+dnss = ["ubmedia.mediaserverproto.Deleter"]
+uris = []
+ips = []
+certinterval = "24h"
+certttl = "48h"
+ca = ["certs/minivault.ca.pem"]
+usesystempool = false
