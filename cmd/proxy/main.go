@@ -1,35 +1,64 @@
 package main
 
 import (
-	"flag"
+	"crypto/tls"
+	"fmt"
+	"io"
 	"io/fs"
+	"log"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 
-	"github.com/je4/securedisplay/data"
 	"github.com/je4/securedisplay/pkg/proxy"
-	"github.com/rs/zerolog"
+	"github.com/je4/utils/v2/pkg/zLogger"
+	ublogger "gitlab.switch.ch/ub-unibas/go-ublogger/v2"
+	"go.ub.unibas.ch/cloud/certloader/v2/pkg/loader"
 )
 
-var addr = flag.String("addr", "localhost:8080", "http service address")
-var ntpServer = flag.String("ntp", "localhost", "ntp server address")
-var numWorker = flag.Int("workers", runtime.NumCPU(), "number of workers")
-var debug = flag.Bool("debug", false, "debug mode")
-var webFolder = flag.String("web", "", "web folder to serve the display from")
-
 func main() {
-	flag.Parse()
-	logger := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
-	logger.Info().Msgf("Starting server on %s", *addr)
+
+	conf, err := loadConfig()
+	if err != nil {
+		panic(fmt.Sprintf("failed to load config: %s", err.Error()))
+	}
+
+	var loggerTLSConfig *tls.Config
+	var loggerLoader io.Closer
+	if conf.Log.Stash.TLS != nil {
+		loggerTLSConfig, loggerLoader, err = loader.CreateClientLoader(conf.Log.Stash.TLS, nil)
+		if err != nil {
+			log.Fatalf("cannot create stash client loader: %v", err)
+		}
+		defer loggerLoader.Close()
+	}
+
+	_logger, _logstash, _logfile, err := ublogger.CreateUbMultiLoggerTLS(conf.Log.Level, conf.Log.File,
+		ublogger.SetDataset(conf.Log.Stash.Dataset),
+		ublogger.SetLogStash(conf.Log.Stash.LogstashHost, conf.Log.Stash.LogstashPort, conf.Log.Stash.Namespace, conf.Log.Stash.LogstashTraceLevel),
+		ublogger.SetTLS(conf.Log.Stash.TLS != nil),
+		ublogger.SetTLSConfig(loggerTLSConfig),
+	)
+	if err != nil {
+		log.Fatalf("cannot create logger: %v", err)
+	}
+	if _logstash != nil {
+		defer _logstash.Close()
+	}
+	if _logfile != nil {
+		defer _logfile.Close()
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatalf("cannot get hostname: %v", err)
+	}
+	l2 := _logger.With().Timestamp().Str("host", hostname).Logger() //.Output(output)
+	var logger zLogger.ZLogger = &l2
 
 	var webFS fs.FS
-	if *webFolder != "" {
-		webFS = os.DirFS(*webFolder)
-	} else {
-		webFS = data.FS
-	}
+	webFS = os.DirFS(conf.WebFolder)
+
 	staticFS, err := fs.Sub(webFS, "static")
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to create static file system")
@@ -40,7 +69,7 @@ func main() {
 		logger.Error().Err(err).Msg("Failed to create template file system")
 	}
 
-	srv, err := proxy.NewSocketServer(*addr, *numWorker, *ntpServer, staticFS, templateFS, *debug, &logger)
+	srv, err := proxy.NewSocketServer(conf.LocalAddr, conf.NumWorkers, conf.NTP, staticFS, templateFS, conf.Debug, logger)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to create server")
 		return

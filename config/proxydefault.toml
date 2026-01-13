@@ -5,7 +5,7 @@ initialtimeout = "1h"
 baseurl = "https://localhost:8759/api/v1"
 parenttoken = "pa.22278aaec77dfa04.aa01b42c3c04c77c" #pa.2dc483e73851c137.15d94e61e0b377f1
 tokentype = "client_cert"
-tokenpolicies = ["ubmedia.mediaserverdeleter"]
+tokenpolicies = ["display.proxy"]
 tokeninterval = "48h"
 tokenttl = "96h"
 certtype = "client_cert"
@@ -19,3 +19,6 @@ usesystempool = false
 
 [servertls]
 type = "dev"
+
+[log]
+level = "debug"
