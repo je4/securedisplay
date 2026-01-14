@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
+	"slices"
 	"time"
 
 	"emperror.dev/errors"
@@ -14,31 +14,17 @@ import (
 )
 
 func (srv *SocketServer) ws(ctx *gin.Context) {
-	var secureName string
-	var name = ctx.Param("name")
-	if ctx.Request.TLS != nil {
-		for _, cert := range ctx.Request.TLS.PeerCertificates {
-			for _, dnsName := range cert.DNSNames {
-				if strings.HasPrefix(name, "ws:") {
-					secureName = dnsName[3:]
-					break
-				}
-			}
-			if secureName != "" {
-				break
-			}
-		}
-	} else {
-		if !srv.debug {
-			srv.logger.Error().Msgf("No TLS certificate found for client %s[%s]", name, ctx.Request.RemoteAddr)
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": fmt.Sprintf("No TLS certificate found for client %s[%s]", name, ctx.Request.RemoteAddr)})
-			return
-		}
+	namesAny, ok := ctx.Get("dnsNames")
+	if !ok {
+		srv.logger.Error().Msg("no names")
+		return
 	}
+	names := namesAny.([]string)
 
-	if secureName != "" && secureName != name {
-		srv.logger.Error().Msgf("'%s' does not match tls name '%s'", name, secureName)
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"code": http.StatusText(http.StatusBadRequest), "message": fmt.Sprintf("'%s' does not match tls name '%s'", name, secureName)})
+	var name = ctx.Param("name")
+	if !slices.Contains(names, "ws:"+name) && !srv.debug {
+		srv.logger.Error().Msgf("name %s not in names %v", name, names)
+		ctx.AbortWithStatusJSON(http.StatusNotFound, fmt.Sprintf("name %s not in names %v", name, names))
 		return
 	}
 	conn, err := srv.upgrade(ctx, name, 10*time.Second)
@@ -46,7 +32,7 @@ func (srv *SocketServer) ws(ctx *gin.Context) {
 		srv.logger.Error().Err(err).Msg("Failed to upgrade connection")
 		return
 	}
-	wsConn := newConnection(conn, name, secureName != "" && name == secureName)
+	wsConn := newConnection(conn, name, true)
 	if err := srv.connectionManager.addWSConn(wsConn); err != nil {
 		srv.logger.Error().Err(err).Msgf("Failed to add connection %s", name)
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to add connection"})

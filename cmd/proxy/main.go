@@ -56,6 +56,13 @@ func main() {
 	l2 := _logger.With().Timestamp().Str("host", hostname).Logger() //.Output(output)
 	var logger zLogger.ZLogger = &l2
 
+	serverTLSConfig, serverLoader, err := loader.CreateServerLoader(true, &conf.ServerTLS, nil, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("cannot create server loader")
+	}
+	defer serverLoader.Close()
+	serverTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
 	var webFS fs.FS
 	webFS = os.DirFS(conf.WebFolder)
 
@@ -69,12 +76,12 @@ func main() {
 		logger.Error().Err(err).Msg("Failed to create template file system")
 	}
 
-	srv, err := proxy.NewSocketServer(conf.LocalAddr, conf.NumWorkers, conf.NTP, staticFS, templateFS, conf.Debug, logger)
+	srv, err := proxy.NewSocketServer(conf.LocalAddr, conf.ExternalAddr, conf.NumWorkers, conf.NTP, staticFS, templateFS, conf.Debug, logger)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to create server")
 		return
 	}
-	if err := srv.Start(nil); err != nil {
+	if err := srv.Start(serverTLSConfig); err != nil {
 		logger.Error().Err(err).Msg("Failed to start server")
 		return
 	}

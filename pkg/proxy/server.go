@@ -5,7 +5,9 @@ import (
 	"crypto/tls"
 	"html/template"
 	"io/fs"
+	"net"
 	"net/http"
+	"net/url"
 	"slices"
 	"sync"
 	"time"
@@ -18,9 +20,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func NewSocketServer(addr string, numWorkers int, ntpServer string, staticFS fs.FS, templateFS fs.FS, debug bool, logger zLogger.ZLogger) (*SocketServer, error) {
+func NewSocketServer(addr string, externalAddr string, numWorkers int, ntpServer string, staticFS fs.FS, templateFS fs.FS, debug bool, logger zLogger.ZLogger) (*SocketServer, error) {
 	ss := &SocketServer{
 		Addr:              addr,
+		ExternalAddr:      externalAddr,
 		upgrader:          websocket.Upgrader{},
 		logger:            logger,
 		templates:         make(map[string]*template.Template),
@@ -43,6 +46,7 @@ func NewSocketServer(addr string, numWorkers int, ntpServer string, staticFS fs.
 
 type SocketServer struct {
 	Addr              string
+	ExternalAddr      string
 	upgrader          websocket.Upgrader
 	srv               *http.Server
 	logger            zLogger.ZLogger
@@ -87,6 +91,35 @@ func (srv *SocketServer) Start(tlsConfig *tls.Config) error {
 		AllowWebSockets:  true,
 	}))
 	srv.connectionManager.start(srv.numWorkers)
+	router.Use(func(c *gin.Context) {
+		if c.Request.TLS == nil {
+			c.Next()
+			return
+		}
+		c.Next()
+		peerCertificates := c.Request.TLS.PeerCertificates
+		// no peer certificates provided
+		if len(peerCertificates) == 0 {
+			c.Next()
+			return
+		}
+		var dnsNames = []string{}
+		var ips = []net.IP{}
+		var emails = []string{}
+		var uris = []*url.URL{}
+		// take the first cert, which should be the verified one...
+		// todo: check whether to use the whole list
+		cert := peerCertificates[0]
+		dnsNames = append(dnsNames, cert.Subject.CommonName)
+		ips = append(ips, cert.IPAddresses...)
+		emails = append(emails, cert.EmailAddresses...)
+		uris = append(uris, cert.URIs...)
+
+		c.Set("names", dnsNames)
+		c.Set("ips", ips)
+		c.Set("emails", emails)
+		c.Set("uris", uris)
+	})
 	router.StaticFS("/static", http.FS(srv.staticFS))
 	router.GET("/control/:name", func(c *gin.Context) {
 		var name = c.Param("name")

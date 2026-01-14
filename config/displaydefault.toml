@@ -1,0 +1,10 @@
+proxy = "wss://localhost:7081/ws"
+name = "display01"
+player = "http://localhost:7081/roundaudio"
+kiosk = true
+
+[clienttls]
+type = "dev"
+
+[log]
+level = "debug"

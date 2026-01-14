@@ -2,12 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
-	"flag"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/je4/securedisplay/pkg/browser"
@@ -15,35 +20,79 @@ import (
 	"github.com/je4/securedisplay/pkg/event"
 	"github.com/je4/securedisplay/pkg/genericplayer"
 	"github.com/je4/utils/v2/pkg/zLogger"
-	"github.com/rs/zerolog"
+	ublogger "gitlab.switch.ch/ub-unibas/go-ublogger/v2"
+	"go.ub.unibas.ch/cloud/certloader/v2/pkg/loader"
 )
 
-var name = flag.String("name", "display01", "name of the display")
-var proxy = flag.String("proxy", "ws://localhost:7081/ws", "address of the websocket proxy server")
-var playerURL = flag.String("player", "http://localhost:7081/roundaudio", "url of the player server")
-var noKiosk = flag.Bool("no-kiosk", false, "disable kiosk")
-
 func main() {
-	flag.Parse()
-	logger := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
-	logger.Info().Msgf("Starting display with name %s", *name)
-	zlogger := zLogger.ZLogger(&logger)
 
-	wsPath, err := url.JoinPath(*proxy, *name)
+	conf, err := loadConfig()
+	if err != nil {
+		panic(fmt.Sprintf("Error loading config: %v", err))
+	}
+	var loggerTLSConfig *tls.Config
+	var loggerLoader io.Closer
+	if conf.Log.Stash.TLS != nil {
+		loggerTLSConfig, loggerLoader, err = loader.CreateClientLoader(conf.Log.Stash.TLS, nil)
+		if err != nil {
+			log.Fatalf("cannot create stash client loader: %v", err)
+		}
+		defer loggerLoader.Close()
+	}
+
+	_logger, _logstash, _logfile, err := ublogger.CreateUbMultiLoggerTLS(conf.Log.Level, conf.Log.File,
+		ublogger.SetDataset(conf.Log.Stash.Dataset),
+		ublogger.SetLogStash(conf.Log.Stash.LogstashHost, conf.Log.Stash.LogstashPort, conf.Log.Stash.Namespace, conf.Log.Stash.LogstashTraceLevel),
+		ublogger.SetTLS(conf.Log.Stash.TLS != nil),
+		ublogger.SetTLSConfig(loggerTLSConfig),
+	)
+	if err != nil {
+		log.Fatalf("cannot create logger: %v", err)
+	}
+	if _logstash != nil {
+		defer _logstash.Close()
+	}
+	if _logfile != nil {
+		defer _logfile.Close()
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatalf("cannot get hostname: %v", err)
+	}
+	l2 := _logger.With().Timestamp().Str("host", hostname).Logger() //.Output(output)
+	var logger zLogger.ZLogger = &l2
+
+	var clientTLSConfig *tls.Config
+	var clientLoader io.Closer
+	if conf.Log.Stash.TLS != nil {
+		clientTLSConfig, clientLoader, err = loader.CreateClientLoader(&conf.ClientTLS, logger)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("cannot create client loader")
+		}
+		defer clientLoader.Close()
+	}
+
+	wsPath, err := url.JoinPath(conf.ProxyAddr, conf.Name)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to create websocket path")
 		return
 	}
 	logger.Info().Msgf("Connecting to websocket proxy server at %s", wsPath)
 
-	c, _, err := websocket.DefaultDialer.Dial(wsPath, nil)
+	wsDialer := &websocket.Dialer{
+		Proxy:            http.ProxyFromEnvironment,
+		HandshakeTimeout: 45 * time.Second,
+		TLSClientConfig:  clientTLSConfig,
+	}
+	c, _, err := wsDialer.Dial(wsPath, nil)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to connect to websocket proxy server")
+		logger.Error().Err(err).Msgf("Failed to connect to websocket proxy server with %s", wsPath)
 		return
 	}
 	defer c.Close()
 
-	comm := client.NewCommunication(c, *name, zlogger)
+	comm := client.NewCommunication(c, *name, logger)
 	if err := comm.Start(); err != nil {
 		logger.Error().Err(err).Msg("Failed to start communication")
 		return
@@ -94,7 +143,7 @@ func main() {
 	if *noKiosk {
 		opts["kiosk"] = false
 	}
-	br, err := browser.NewBrowser(opts, &logger, func(s string, i ...interface{}) {
+	br, err := browser.NewBrowser(opts, logger, func(s string, i ...interface{}) {
 		logger.Debug().Msgf("browser: %s - %v", s, i)
 	})
 	if err != nil {
@@ -110,7 +159,7 @@ func main() {
 		logger.Panic().Err(err).Msg("Failed to parse player URL")
 	}
 
-	player := genericplayer.NewPlayer(context.Background(), playerU, br, comm, &logger)
+	player := genericplayer.NewPlayer(context.Background(), playerU, br, comm, logger)
 	_ = player
 
 	sigint := make(chan os.Signal, 1)
