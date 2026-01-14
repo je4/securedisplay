@@ -43,7 +43,7 @@ func loadConfig() (*ProxyConfig, error) {
 			return nil, errors.Wrapf(err, "failed to load config from %s", *configPath)
 		}
 	}
-	flag.VisitAll(func(f *flag.Flag) {
+	flag.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "web":
 			cfg.WebFolder = *webFolder
