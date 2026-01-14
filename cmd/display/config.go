@@ -18,7 +18,7 @@ var playerURL = flag.String("player", "", "url of the player server")
 var noKiosk = flag.Bool("no-kiosk", false, "disable kiosk")
 
 type DisplayConfig struct {
-	ProxyAddr string             `toml:"localaddr"`
+	ProxyAddr string             `toml:"proxy"`
 	Name      string             `toml:"name"`
 	PlayerURL string             `toml:"player"`
 	Kiosk     bool               `toml:"kiosk"`
@@ -40,7 +40,7 @@ func loadConfig() (*DisplayConfig, error) {
 			return nil, errors.Wrapf(err, "failed to load config from %s", *configPath)
 		}
 	}
-	flag.VisitAll(func(f *flag.Flag) {
+	flag.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "debug":
 			cfg.Debug = *debug
