@@ -153,7 +153,7 @@ func main() {
 		logger.Panic().Err(err).Msg("Failed to create browser")
 	}
 
-	playerFullPath, err := url.JoinPath(*playerURL, *name)
+	playerFullPath, err := url.JoinPath(conf.PlayerURL, conf.Name)
 	if err != nil {
 		logger.Panic().Err(err).Msg("Failed to create player path")
 	}
