@@ -96,7 +96,6 @@ func (srv *SocketServer) Start(tlsConfig *tls.Config) error {
 			c.Next()
 			return
 		}
-		c.Next()
 		peerCertificates := c.Request.TLS.PeerCertificates
 		// no peer certificates provided
 		if len(peerCertificates) == 0 {
@@ -110,7 +109,7 @@ func (srv *SocketServer) Start(tlsConfig *tls.Config) error {
 		// take the first cert, which should be the verified one...
 		// todo: check whether to use the whole list
 		cert := peerCertificates[0]
-		dnsNames = append(dnsNames, cert.Subject.CommonName)
+		dnsNames = append(dnsNames, cert.DNSNames...)
 		ips = append(ips, cert.IPAddresses...)
 		emails = append(emails, cert.EmailAddresses...)
 		uris = append(uris, cert.URIs...)
@@ -119,6 +118,7 @@ func (srv *SocketServer) Start(tlsConfig *tls.Config) error {
 		c.Set("ips", ips)
 		c.Set("emails", emails)
 		c.Set("uris", uris)
+		c.Next()
 	})
 	router.StaticFS("/static", http.FS(srv.staticFS))
 	router.GET("/control/:name", func(c *gin.Context) {

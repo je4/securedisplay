@@ -14,7 +14,7 @@ import (
 )
 
 func (srv *SocketServer) ws(ctx *gin.Context) {
-	namesAny, ok := ctx.Get("dnsNames")
+	namesAny, ok := ctx.Get("names")
 	if !ok {
 		srv.logger.Error().Msg("no names")
 		return

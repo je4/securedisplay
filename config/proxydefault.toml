@@ -3,6 +3,8 @@ externaladdr = "localhost:8080"
 
 [servertls]
 type = "dev"
+[servertls.dev]
+interval = "10h"
 
 [log]
 level = "debug"

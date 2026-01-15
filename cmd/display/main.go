@@ -19,6 +19,7 @@ import (
 	"github.com/je4/securedisplay/pkg/client"
 	"github.com/je4/securedisplay/pkg/event"
 	"github.com/je4/securedisplay/pkg/genericplayer"
+	"github.com/je4/trustutil/v2/pkg/certutil"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	ublogger "gitlab.switch.ch/ub-unibas/go-ublogger/v2"
 	"go.ub.unibas.ch/cloud/certloader/v2/pkg/loader"
@@ -63,15 +64,17 @@ func main() {
 	l2 := _logger.With().Timestamp().Str("host", hostname).Logger() //.Output(output)
 	var logger zLogger.ZLogger = &l2
 
-	var clientTLSConfig *tls.Config
-	var clientLoader io.Closer
-	if conf.Log.Stash.TLS != nil {
-		clientTLSConfig, clientLoader, err = loader.CreateClientLoader(&conf.ClientTLS, logger)
-		if err != nil {
-			logger.Fatal().Err(err).Msg("cannot create client loader")
-		}
-		defer clientLoader.Close()
+	certutil.AddDefaultDNSNames("ws:" + conf.Name)
+	clientTLSConfig, clientLoader, err := loader.CreateClientLoader(&conf.ClientTLS, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("cannot create client loader")
 	}
+	defer clientLoader.Close()
+	ca, err := clientLoader.GetCA()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("cannot get CA")
+	}
+	clientTLSConfig.RootCAs = ca
 
 	wsPath, err := url.JoinPath(conf.ProxyAddr, conf.Name)
 	if err != nil {

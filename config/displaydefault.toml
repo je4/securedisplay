@@ -5,6 +5,10 @@ kiosk = true
 
 [clienttls]
 type = "dev"
+[clienttls.dev]
+usesystempool = false
+interval = "10h"
+
 
 [log]
 level = "debug"

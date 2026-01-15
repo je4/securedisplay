@@ -48,7 +48,7 @@ func loadConfig() (*ProxyConfig, error) {
 		case "web":
 			cfg.WebFolder = *webFolder
 		case "debug":
-			cfg.Debug = true
+			cfg.Debug = *debug
 		case "workers":
 			cfg.NumWorkers = *numWorker
 		case "ntp":
