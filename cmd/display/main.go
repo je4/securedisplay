@@ -95,7 +95,7 @@ func main() {
 	}
 	defer c.Close()
 
-	comm := client.NewCommunication(c, *name, logger)
+	comm := client.NewCommunication(c, conf.Name, logger)
 	if err := comm.Start(); err != nil {
 		logger.Error().Err(err).Msg("Failed to start communication")
 		return
@@ -112,7 +112,7 @@ func main() {
 	}
 	if err := comm.Send(&event.Event{
 		Type:   event.TypeAttach,
-		Source: *name,
+		Source: conf.Name,
 		Target: "",
 		Token:  "",
 		Data:   jsonBytes,
@@ -143,7 +143,7 @@ func main() {
 		"enable-automation":                false,
 		"mute-audio":                       false,
 	}
-	if *noKiosk {
+	if !conf.Kiosk {
 		opts["kiosk"] = false
 	}
 	br, err := browser.NewBrowser(opts, logger, func(s string, i ...interface{}) {

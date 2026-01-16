@@ -30,7 +30,7 @@ func (conn *ntpConn) Write(b []byte) (n int, err error) {
 	if err != nil {
 		return 0, errors.Wrapf(err, "error marshalling %s", conn.comm.name)
 	}
-	conn.comm.logger.Debug().Msgf("Sending ntp query to %s: %s", conn.comm.name, string(jsonBytes))
+	conn.comm.logger.Debug().Msgf("Sending ntp query from %s: %s", conn.comm.name, string(jsonBytes))
 	if err := conn.comm.Send(&event.Event{
 		Type:   event.TypeNTPQuery,
 		Source: conn.comm.name,

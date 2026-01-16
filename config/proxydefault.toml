@@ -1,5 +1,7 @@
 localaddr = "localhost:8080"
 externaladdr = "localhost:8080"
+num_workers = 5
+ntp = "localhost"
 
 [servertls]
 type = "dev"
