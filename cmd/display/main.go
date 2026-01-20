@@ -142,6 +142,7 @@ func main() {
 		"useAutomationExtension":           false,
 		"enable-automation":                false,
 		"mute-audio":                       false,
+		"ignore-certificate-errors":        false,
 	}
 	if !conf.Kiosk {
 		opts["kiosk"] = false

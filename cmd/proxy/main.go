@@ -61,7 +61,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("cannot create server loader")
 	}
 	defer serverLoader.Close()
-	serverTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	serverTLSConfig.ClientAuth = tls.VerifyClientCertIfGiven
 
 	var webFS fs.FS
 	webFS = os.DirFS(conf.WebFolder)

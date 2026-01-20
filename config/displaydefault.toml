@@ -1,6 +1,6 @@
 proxy = "wss://localhost:7081/ws"
 name = "display01"
-player = "http://localhost:7081/roundaudio"
+player = "https://localhost:7081/roundaudio"
 kiosk = true
 
 [clienttls]

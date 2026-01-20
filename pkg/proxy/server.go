@@ -91,7 +91,8 @@ func (srv *SocketServer) Start(tlsConfig *tls.Config) error {
 		AllowWebSockets:  true,
 	}))
 	srv.connectionManager.start(srv.numWorkers)
-	router.Use(func(c *gin.Context) {
+	wssRouter := router.Group("/ws")
+	wssRouter.Use(func(c *gin.Context) {
 		if c.Request.TLS == nil {
 			c.Next()
 			return
@@ -170,7 +171,7 @@ func (srv *SocketServer) Start(tlsConfig *tls.Config) error {
 		}
 	})
 	router.GET("/echo", srv.echo)
-	router.GET("/ws/:name", srv.ws)
+	wssRouter.GET("/:name", srv.ws)
 	srv.srv = &http.Server{
 		Addr:      srv.Addr,
 		Handler:   router,
