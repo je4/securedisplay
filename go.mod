@@ -1,6 +1,6 @@
 module github.com/je4/securedisplay
 
-go 1.25.5
+go 1.25.6
 
 require (
 	emperror.dev/errors v0.8.1
@@ -12,6 +12,8 @@ require (
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/je4/displayproxy v0.0.0-20260129132806-e4e3cb3e2062
+	github.com/je4/trustutil/v2 v2.0.31
 	github.com/je4/utils/v2 v2.0.62
 	github.com/rs/zerolog v1.34.0
 	github.com/sahmad98/go-ringbuffer v1.1.0
@@ -25,8 +27,8 @@ require (
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic v1.14.2 // indirect
-	github.com/bytedance/sonic/loader v0.4.0 // indirect
+	github.com/bytedance/sonic v1.15.0 // indirect
+	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
@@ -41,7 +43,6 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
-	github.com/je4/trustutil/v2 v2.0.31 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
@@ -58,7 +59,7 @@ require (
 	github.com/telkomdev/go-stash v1.0.6 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
-	go.step.sm/crypto v0.75.0 // indirect
+	go.step.sm/crypto v0.76.0 // indirect
 	go.ub.unibas.ch/cloud/genericproto/v2 v2.0.4 // indirect
 	go.ub.unibas.ch/cloud/minivaultclient v1.0.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

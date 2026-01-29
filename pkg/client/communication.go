@@ -10,7 +10,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/beevik/ntp"
 	"github.com/gorilla/websocket"
-	"github.com/je4/securedisplay/pkg/event"
+	"github.com/je4/displayproxy/pkg/event"
 	"github.com/je4/utils/v2/pkg/zLogger"
 )
 

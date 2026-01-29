@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/je4/displayproxy/pkg/event"
 	"github.com/je4/securedisplay/pkg/browser"
 	"github.com/je4/securedisplay/pkg/client"
-	"github.com/je4/securedisplay/pkg/event"
 	"github.com/je4/securedisplay/pkg/genericplayer"
 	"github.com/je4/trustutil/v2/pkg/certutil"
 	"github.com/je4/utils/v2/pkg/zLogger"

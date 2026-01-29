@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"emperror.dev/errors"
-	"github.com/je4/securedisplay/pkg/event"
+	"github.com/je4/displayproxy/pkg/event"
 )
 
 func newNTPConn(comm *Communication) net.Conn {

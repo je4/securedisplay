@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/je4/displayproxy/pkg/event"
 	"github.com/je4/securedisplay/pkg/browser"
 	"github.com/je4/securedisplay/pkg/client"
-	"github.com/je4/securedisplay/pkg/event"
 	"github.com/je4/utils/v2/pkg/zLogger"
 )
 
